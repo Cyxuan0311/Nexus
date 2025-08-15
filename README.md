@@ -61,6 +61,11 @@ sudo dnf install gcc-c++ cmake qt5-devel gtest-devel
 brew install cmake qt5 gtest
 ```
 
+**Or use our automated script:**
+```bash
+python3 ./scripts/install_dependencies.py
+```
+
 ### 🔨 Build Instructions
 
 1. **Clone the repository:**
@@ -97,6 +102,11 @@ make test
 ./bin/Cxml
 ```
 
+**Or use our automated build script:**
+```shell
+python3 ./scripts/build.py
+```
+
 ## 🎯 Usage
 
 1. **Open an XML file**: Click "Open XML File" or use File → Open
@@ -121,6 +131,9 @@ Cxml/
 ├── test/                  # Test files
 │   ├── main.cpp          # Test entry point
 │   └── xml_parser_test.cpp # Unit tests
+├── scripts/               # Build and utility scripts
+│   ├── build.py          # Automated build script
+│   └── install_dependencies.py # Dependency installation script
 └── examples/              # Sample XML files
     ├── sample.xml        # Complex XML example
     └── simple.xml        # Simple XML example
