@@ -1,0 +1,7 @@
+<root>
+    <element1>Simple text content</element1>
+    <element2 attr1="value1" attr2="value2">
+        <nested>Nested content</nested>
+    </element2>
+    <selfclosing />
+</root> 

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<library>
+    <!-- This is a sample XML file for testing -->
+    <book id="1" category="fiction">
+        <title>The Great Gatsby</title>
+        <author>F. Scott Fitzgerald</author>
+        <year>1925</year>
+        <description>A story of the fabulously wealthy Jay Gatsby and his love for the beautiful Daisy Buchanan.</description>
+        <tags>
+            <tag>classic</tag>
+            <tag>romance</tag>
+            <tag>drama</tag>
+        </tags>
+    </book>
+    
+    <book id="2" category="non-fiction">
+        <title>Clean Code</title>
+        <author>Robert C. Martin</author>
+        <year>2008</year>
+        <description>A handbook of agile software craftsmanship.</description>
+        <tags>
+            <tag>programming</tag>
+            <tag>software</tag>
+            <tag>best-practices</tag>
+        </tags>
+    </book>
+    
+    <book id="3" category="fiction">
+        <title>1984</title>
+        <author>George Orwell</author>
+        <year>1949</year>
+        <description>A dystopian social science fiction novel and cautionary tale.</description>
+        <tags>
+            <tag>dystopian</tag>
+            <tag>political</tag>
+            <tag>science-fiction</tag>
+        </tags>
+    </book>
+</library> 
