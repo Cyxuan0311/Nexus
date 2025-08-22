@@ -15,7 +15,14 @@
 #include <QKeySequence>
 #include <QVariant>
 #include <QStyle>
+#include <QToolButton>
+#include <QFile>
+#include <QTextStream>
+#include <QIODevice>
+#include <QTextCursor>
+#include <QMessageBox>
 #include <fstream>
+#include <stdexcept>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent) {
@@ -25,8 +32,14 @@ MainWindow::MainWindow(QWidget *parent)
     setupStatusBar();
     setupStyle();
     
+    // Initialize data
+    isEditing_ = false;
+    originalXmlContent_ = "";
+    searchDialog_ = nullptr;
+    currentSearchIndex_ = -1;
+    
     setWindowTitle("Cxml - XML Visualizer");
-    resize(1200, 800);
+    resize(1400, 900);
 }
 
 MainWindow::~MainWindow() {
@@ -77,14 +90,44 @@ void MainWindow::setupUi() {
     detailsTextEdit_->setReadOnly(true);
     rightLayout->addWidget(detailsTextEdit_);
     
+    // Center panel for XML editor
+    centerPanel_ = new QWidget();
+    QVBoxLayout* centerLayout = new QVBoxLayout(centerPanel_);
+    centerLayout->setContentsMargins(0, 0, 0, 0);
+    
+    // XML Editor controls
+    QHBoxLayout* editorControlsLayout = new QHBoxLayout();
+    editButton_ = new QPushButton("Edit XML");
+    saveButton_ = new QPushButton("Save Changes");
+    saveButton_->setEnabled(false);
+    editorControlsLayout->addWidget(editButton_);
+    editorControlsLayout->addWidget(saveButton_);
+    editorControlsLayout->addStretch();
+    
+    centerLayout->addLayout(editorControlsLayout);
+    
+    // XML Editor
+    xmlEditor_ = new QPlainTextEdit();
+    xmlEditor_->setReadOnly(true);
+    xmlEditor_->setFont(QFont("Consolas", 12));
+    xmlEditor_->setLineWrapMode(QPlainTextEdit::NoWrap);
+    
+    // Apply syntax highlighting
+    new XmlHighlighter(xmlEditor_->document());
+    
+    centerLayout->addWidget(xmlEditor_);
+    
     // Add panels to splitter
     mainSplitter_->addWidget(leftPanel_);
+    mainSplitter_->addWidget(centerPanel_);
     mainSplitter_->addWidget(rightPanel_);
-    mainSplitter_->setSizes({800, 400});
+    mainSplitter_->setSizes({400, 600, 400});
     
     // Connect signals
     connect(openButton_, &QPushButton::clicked, this, &MainWindow::openFile);
     connect(parseButton_, &QPushButton::clicked, this, &MainWindow::parseXml);
+    connect(editButton_, &QPushButton::clicked, this, &MainWindow::toggleEditMode);
+    connect(saveButton_, &QPushButton::clicked, this, &MainWindow::saveXmlContent);
     connect(treeWidget_, &QTreeWidget::itemClicked, this, &MainWindow::onTreeItemClicked);
 }
 
@@ -103,9 +146,45 @@ void MainWindow::setupMenuBar() {
     
     fileMenu->addSeparator();
     
+    // Export submenu
+    QMenu* exportMenu = fileMenu->addMenu("&Export");
+    exportJsonAction_ = exportMenu->addAction("To &JSON...");
+    connect(exportJsonAction_, &QAction::triggered, this, &MainWindow::exportToJson);
+    
+    exportYamlAction_ = exportMenu->addAction("To &YAML...");
+    connect(exportYamlAction_, &QAction::triggered, this, &MainWindow::exportToYaml);
+    
+    exportCsvAction_ = exportMenu->addAction("To &CSV...");
+    connect(exportCsvAction_, &QAction::triggered, this, &MainWindow::exportToCsv);
+    
+    // Import submenu
+    QMenu* importMenu = fileMenu->addMenu("&Import");
+    importJsonAction_ = importMenu->addAction("From &JSON...");
+    connect(importJsonAction_, &QAction::triggered, this, &MainWindow::importFromJson);
+    
+    importYamlAction_ = importMenu->addAction("From &YAML...");
+    connect(importYamlAction_, &QAction::triggered, this, &MainWindow::importFromYaml);
+    
+    fileMenu->addSeparator();
+    
     exitAction_ = fileMenu->addAction("E&xit");
     exitAction_->setShortcut(QKeySequence::Quit);
     connect(exitAction_, &QAction::triggered, this, &QApplication::quit);
+    
+    // Edit menu
+    QMenu* editMenu = menuBar->addMenu("&Edit");
+    searchAction_ = editMenu->addAction("&Find/Replace...");
+    searchAction_->setShortcut(QKeySequence::Find);
+    connect(searchAction_, &QAction::triggered, this, &MainWindow::showSearchDialog);
+    
+    editMenu->addSeparator();
+    foldAllAction_ = editMenu->addAction("Fold &All");
+    foldAllAction_->setShortcut(QKeySequence("Ctrl+Shift+["));
+    connect(foldAllAction_, &QAction::triggered, this, &MainWindow::foldAllXml);
+    
+    unfoldAllAction_ = editMenu->addAction("&Unfold All");
+    unfoldAllAction_->setShortcut(QKeySequence("Ctrl+Shift+]"));
+    connect(unfoldAllAction_, &QAction::triggered, this, &MainWindow::unfoldAllXml);
     
     // Help menu
     QMenu* helpMenu = menuBar->addMenu("&Help");
@@ -119,6 +198,24 @@ void MainWindow::setupToolBar() {
     toolBar->addAction(saveAction_);
     toolBar->addSeparator();
     toolBar->addWidget(parseButton_);
+    toolBar->addSeparator();
+    
+    // Add export actions to toolbar
+    QMenu* exportMenu = new QMenu();
+    exportMenu->addAction(exportJsonAction_);
+    exportMenu->addAction(exportYamlAction_);
+    exportMenu->addAction(exportCsvAction_);
+    
+    QToolButton* exportButton = new QToolButton();
+    exportButton->setText("Export");
+    exportButton->setMenu(exportMenu);
+    exportButton->setPopupMode(QToolButton::InstantPopup);
+    toolBar->addWidget(exportButton);
+    toolBar->addSeparator();
+    toolBar->addAction(searchAction_);
+    toolBar->addSeparator();
+    toolBar->addAction(foldAllAction_);
+    toolBar->addAction(unfoldAllAction_);
 }
 
 void MainWindow::setupStatusBar() {
@@ -184,6 +281,15 @@ void MainWindow::setupStyle() {
             color: #CCCCCC;
             font-family: 'Consolas', 'Monaco', monospace;
             font-size: 12px;
+        }
+        
+        QPlainTextEdit {
+            background-color: #1E1E1E;
+            border: 1px solid #3E3E42;
+            color: #CCCCCC;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
+            selection-background-color: #094771;
         }
         
         QPushButton {
@@ -272,7 +378,31 @@ void MainWindow::openFile() {
         currentFilePath_ = fileName.toStdString();
         fileLabel_->setText(QFileInfo(fileName).fileName());
         parseButton_->setEnabled(true);
+        
+        // Load and display XML content in editor
+        loadXmlContent(fileName);
+        
         statusBar()->showMessage("File loaded: " + fileName);
+    }
+}
+
+void MainWindow::loadXmlContent(const QString& fileName) {
+    QFile file(fileName);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream in(&file);
+        QString content = in.readAll();
+        file.close();
+        
+        xmlEditor_->setPlainText(content);
+        originalXmlContent_ = content;
+        isEditing_ = false;
+        
+        // Update button states
+        editButton_->setEnabled(true);
+        saveButton_->setEnabled(false);
+        xmlEditor_->setReadOnly(true);
+    } else {
+        QMessageBox::critical(this, "Error", "Failed to open file: " + fileName);
     }
 }
 
@@ -310,13 +440,19 @@ void MainWindow::saveFile() {
         "Save XML File", "", "XML Files (*.xml);;All Files (*)");
     
     if (!fileName.isEmpty()) {
-        std::ofstream file(fileName.toStdString());
-        if (file.is_open()) {
-            file << parser_.nodeToString(rootNode_);
-            file.close();
-            statusBar()->showMessage("File saved: " + fileName);
-        } else {
-            QMessageBox::critical(this, "Error", "Failed to save file.");
+        try {
+            std::string xmlContent = serializer_.serializeToXml(rootNode_);
+            std::ofstream file(fileName.toStdString());
+            if (file.is_open()) {
+                file << xmlContent;
+                file.close();
+                statusBar()->showMessage("File saved: " + fileName);
+            } else {
+                QMessageBox::critical(this, "Error", "Failed to save file.");
+            }
+        } catch (const std::exception& e) {
+            QMessageBox::critical(this, "Error", 
+                QString("Failed to save file: %1").arg(e.what()));
         }
     }
 }
@@ -474,4 +610,350 @@ void MainWindow::clearDisplay() {
     treeWidget_->clear();
     detailsTextEdit_->clear();
     rootNode_.reset();
+}
+
+void MainWindow::exportToJson() {
+    if (!rootNode_) {
+        QMessageBox::warning(this, "Warning", "No XML data to export.");
+        return;
+    }
+    
+    QString fileName = QFileDialog::getSaveFileName(this,
+        "Export to JSON", "", "JSON Files (*.json);;All Files (*)");
+    
+    if (!fileName.isEmpty()) {
+        try {
+            std::string jsonContent = serializer_.serializeToJson(rootNode_);
+            std::ofstream file(fileName.toStdString());
+            if (file.is_open()) {
+                file << jsonContent;
+                file.close();
+                statusBar()->showMessage("Exported to JSON: " + fileName);
+            } else {
+                QMessageBox::critical(this, "Error", "Failed to save JSON file.");
+            }
+        } catch (const std::exception& e) {
+            QMessageBox::critical(this, "Error", 
+                QString("Failed to export to JSON: %1").arg(e.what()));
+        }
+    }
+}
+
+void MainWindow::exportToYaml() {
+    if (!rootNode_) {
+        QMessageBox::warning(this, "Warning", "No XML data to export.");
+        return;
+    }
+    
+    QString fileName = QFileDialog::getSaveFileName(this,
+        "Export to YAML", "", "YAML Files (*.yaml *.yml);;All Files (*)");
+    
+    if (!fileName.isEmpty()) {
+        try {
+            std::string yamlContent = serializer_.serializeToYaml(rootNode_);
+            std::ofstream file(fileName.toStdString());
+            if (file.is_open()) {
+                file << yamlContent;
+                file.close();
+                statusBar()->showMessage("Exported to YAML: " + fileName);
+            } else {
+                QMessageBox::critical(this, "Error", "Failed to save YAML file.");
+            }
+        } catch (const std::exception& e) {
+            QMessageBox::critical(this, "Error", 
+                QString("Failed to export to YAML: %1").arg(e.what()));
+        }
+    }
+}
+
+void MainWindow::exportToCsv() {
+    if (!rootNode_) {
+        QMessageBox::warning(this, "Warning", "No XML data to export.");
+        return;
+    }
+    
+    QString fileName = QFileDialog::getSaveFileName(this,
+        "Export to CSV", "", "CSV Files (*.csv);;All Files (*)");
+    
+    if (!fileName.isEmpty()) {
+        try {
+            std::string csvContent = serializer_.serializeToCsv(rootNode_);
+            std::ofstream file(fileName.toStdString());
+            if (file.is_open()) {
+                file << csvContent;
+                file.close();
+                statusBar()->showMessage("Exported to CSV: " + fileName);
+            } else {
+                QMessageBox::critical(this, "Error", "Failed to save CSV file.");
+            }
+        } catch (const std::exception& e) {
+            QMessageBox::critical(this, "Error", 
+                QString("Failed to export to CSV: %1").arg(e.what()));
+        }
+    }
+}
+
+void MainWindow::importFromJson() {
+    QString fileName = QFileDialog::getOpenFileName(this,
+        "Import from JSON", "", "JSON Files (*.json);;All Files (*)");
+    
+    if (!fileName.isEmpty()) {
+        try {
+            std::ifstream file(fileName.toStdString());
+            if (file.is_open()) {
+                std::string jsonContent((std::istreambuf_iterator<char>(file)),
+                                       std::istreambuf_iterator<char>());
+                file.close();
+                
+                auto importedNode = serializer_.deserializeFromJson(jsonContent);
+                if (importedNode) {
+                    clearDisplay();
+                    rootNode_ = importedNode;
+                    populateTreeWidget(rootNode_);
+                    currentFilePath_ = fileName.toStdString();
+                    fileLabel_->setText(QFileInfo(fileName).fileName());
+                    statusBar()->showMessage("Imported from JSON: " + fileName);
+                } else {
+                    QMessageBox::warning(this, "Warning", "Failed to parse JSON file.");
+                }
+            } else {
+                QMessageBox::critical(this, "Error", "Failed to open JSON file.");
+            }
+        } catch (const std::exception& e) {
+            QMessageBox::critical(this, "Error", 
+                QString("Failed to import from JSON: %1").arg(e.what()));
+        }
+    }
+}
+
+void MainWindow::importFromYaml() {
+    QString fileName = QFileDialog::getOpenFileName(this,
+        "Import from YAML", "", "YAML Files (*.yaml *.yml);;All Files (*)");
+    
+    if (!fileName.isEmpty()) {
+        try {
+            std::ifstream file(fileName.toStdString());
+            if (file.is_open()) {
+                std::string yamlContent((std::istreambuf_iterator<char>(file)),
+                                       std::istreambuf_iterator<char>());
+                file.close();
+                
+                auto importedNode = serializer_.deserializeFromYaml(yamlContent);
+                if (importedNode) {
+                    clearDisplay();
+                    rootNode_ = importedNode;
+                    populateTreeWidget(rootNode_);
+                    currentFilePath_ = fileName.toStdString();
+                    fileLabel_->setText(QFileInfo(fileName).fileName());
+                    statusBar()->showMessage("Imported from YAML: " + fileName);
+                } else {
+                    QMessageBox::warning(this, "Warning", "Failed to parse YAML file.");
+                }
+            } else {
+                QMessageBox::critical(this, "Error", "Failed to open YAML file.");
+            }
+        } catch (const std::exception& e) {
+            QMessageBox::critical(this, "Error", 
+                QString("Failed to import from YAML: %1").arg(e.what()));
+        }
+    }
+}
+
+void MainWindow::showSearchDialog() {
+    if (!searchDialog_) {
+        searchDialog_ = new SearchDialog(this);
+    }
+    
+    if (searchDialog_->exec() == QDialog::Accepted) {
+        if (searchDialog_->isReplaceMode()) {
+            performReplace();
+        } else {
+            performSearch();
+        }
+    }
+}
+
+void MainWindow::performSearch() {
+    QString searchText = searchDialog_->getSearchText();
+    if (searchText.isEmpty()) return;
+    
+    searchResults_.clear();
+    currentSearchIndex_ = -1;
+    
+    // Search in tree view
+    if (searchDialog_->searchInTree()) {
+        searchInTreeWidget(searchText);
+    }
+    
+    // Search in editor
+    if (searchDialog_->searchInEditor()) {
+        searchInEditor(searchText);
+    }
+    
+    // Show results
+    if (!searchResults_.isEmpty()) {
+        statusBar()->showMessage(QString("Found %1 results").arg(searchResults_.size()));
+        highlightNextResult();
+    } else {
+        statusBar()->showMessage("No results found");
+    }
+}
+
+void MainWindow::performReplace() {
+    QString searchText = searchDialog_->getSearchText();
+    QString replaceText = searchDialog_->getReplaceText();
+    
+    if (searchText.isEmpty()) return;
+    
+    // Replace in editor
+    if (searchDialog_->searchInEditor()) {
+        QTextCursor cursor = xmlEditor_->textCursor();
+        QString content = xmlEditor_->toPlainText();
+        
+        if (searchDialog_->isRegex()) {
+            // TODO: Implement regex replace
+            QMessageBox::information(this, "Info", "Regex replace not implemented yet");
+        } else {
+            Qt::CaseSensitivity caseSensitivity = searchDialog_->isCaseSensitive() ? 
+                Qt::CaseSensitive : Qt::CaseInsensitive;
+            
+            int count = content.count(searchText, caseSensitivity);
+            if (count > 0) {
+                content.replace(searchText, replaceText, caseSensitivity);
+                xmlEditor_->setPlainText(content);
+                statusBar()->showMessage(QString("Replaced %1 occurrences").arg(count));
+            }
+        }
+    }
+}
+
+void MainWindow::searchInTreeWidget(const QString& searchText) {
+    searchInTreeWidgetRecursive(treeWidget_->invisibleRootItem(), searchText);
+}
+
+void MainWindow::searchInTreeWidgetRecursive(QTreeWidgetItem* item, const QString& searchText) {
+    if (!item) return;
+    
+    // Check current item
+    QString itemText = item->text(0);
+    Qt::CaseSensitivity caseSensitivity = searchDialog_->isCaseSensitive() ? 
+        Qt::CaseSensitive : Qt::CaseInsensitive;
+    
+    if (itemText.contains(searchText, caseSensitivity)) {
+        searchResults_.append(item);
+    }
+    
+    // Check children
+    for (int i = 0; i < item->childCount(); ++i) {
+        searchInTreeWidgetRecursive(item->child(i), searchText);
+    }
+}
+
+void MainWindow::searchInEditor(const QString& searchText) {
+    QTextCursor cursor = xmlEditor_->textCursor();
+    QString content = xmlEditor_->toPlainText();
+    
+    Qt::CaseSensitivity caseSensitivity = searchDialog_->isCaseSensitive() ? 
+        Qt::CaseSensitive : Qt::CaseInsensitive;
+    
+    int pos = content.indexOf(searchText, cursor.position(), caseSensitivity);
+    if (pos >= 0) {
+        cursor.setPosition(pos);
+        cursor.setPosition(pos + searchText.length(), QTextCursor::KeepAnchor);
+        xmlEditor_->setTextCursor(cursor);
+        xmlEditor_->ensureCursorVisible();
+    }
+}
+
+void MainWindow::highlightNextResult() {
+    if (searchResults_.isEmpty()) return;
+    
+    currentSearchIndex_ = (currentSearchIndex_ + 1) % searchResults_.size();
+    QTreeWidgetItem* item = searchResults_[currentSearchIndex_];
+    
+    if (item) {
+        treeWidget_->setCurrentItem(item);
+        treeWidget_->scrollToItem(item);
+        item->setSelected(true);
+    }
+}
+
+void MainWindow::foldAllXml() {
+    if (xmlEditor_) {
+        xmlEditor_->foldAll();
+        statusBar()->showMessage("All XML blocks folded");
+    }
+}
+
+void MainWindow::unfoldAllXml() {
+    if (xmlEditor_) {
+        xmlEditor_->unfoldAll();
+        statusBar()->showMessage("All XML blocks unfolded");
+    }
+}
+
+void MainWindow::toggleEditMode() {
+    if (!isEditing_) {
+        // Enter edit mode
+        isEditing_ = true;
+        xmlEditor_->setReadOnly(false);
+        editButton_->setText("Cancel Edit");
+        saveButton_->setEnabled(true);
+        statusBar()->showMessage("Edit mode enabled - you can now modify the XML");
+    } else {
+        // Cancel edit mode
+        isEditing_ = false;
+        xmlEditor_->setPlainText(originalXmlContent_);
+        xmlEditor_->setReadOnly(true);
+        editButton_->setText("Edit XML");
+        saveButton_->setEnabled(false);
+        statusBar()->showMessage("Edit cancelled - changes discarded");
+    }
+}
+
+void MainWindow::saveXmlContent() {
+    if (!isEditing_) {
+        return;
+    }
+    
+    QString newContent = xmlEditor_->toPlainText();
+    
+    // Validate XML before saving
+    try {
+        auto testNode = parser_.parseString(newContent.toStdString());
+        if (!testNode) {
+            QMessageBox::StandardButton reply = QMessageBox::question(this, "Warning", 
+                "The XML content appears to be invalid. Save anyway?",
+                QMessageBox::Yes | QMessageBox::No);
+            if (reply == QMessageBox::No) {
+                return;
+            }
+        }
+    } catch (...) {
+        QMessageBox::StandardButton reply = QMessageBox::question(this, "Warning", 
+            "The XML content appears to be invalid. Save anyway?",
+            QMessageBox::Yes | QMessageBox::No);
+        if (reply == QMessageBox::No) {
+            return;
+        }
+    }
+    
+    // Save to file
+    QFile file(QString::fromStdString(currentFilePath_));
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream out(&file);
+        out << newContent;
+        file.close();
+        
+        // Update original content
+        originalXmlContent_ = newContent;
+        isEditing_ = false;
+        xmlEditor_->setReadOnly(true);
+        editButton_->setText("Edit XML");
+        saveButton_->setEnabled(false);
+        
+        statusBar()->showMessage("XML content saved successfully");
+    } else {
+        QMessageBox::critical(this, "Error", "Failed to save XML content");
+    }
 } 
