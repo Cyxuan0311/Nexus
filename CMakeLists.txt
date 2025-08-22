@@ -23,6 +23,9 @@ include_directories(${CMAKE_SOURCE_DIR}/include)
 file(GLOB_RECURSE SOURCES "src/*.cpp")
 file(GLOB_RECURSE HEADERS "include/*.h")
 
+# Add new serializer, highlighter, search dialog and code folding sources
+list(APPEND SOURCES "src/xml_serializer.cpp" "src/xml_highlighter.cpp" "src/search_dialog.cpp" "src/code_folding.cpp")
+
 # Create main executable
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
 
@@ -36,7 +39,7 @@ target_link_libraries(${PROJECT_NAME}
 enable_testing()
 
 # Test executable
-add_executable(${PROJECT_NAME}_tests "test/main.cpp" "test/xml_parser_test.cpp")
+add_executable(${PROJECT_NAME}_tests "test/main.cpp" "test/xml_parser_test.cpp" "test/xml_serializer_test.cpp" "test/search_test.cpp" "test/code_folding_test.cpp")
 target_link_libraries(${PROJECT_NAME}_tests 
     GTest::gtest 
     GTest::gtest_main
