@@ -12,10 +12,16 @@ A Qt-based XML file parser and visualizer with a VSCode-like interface, built wi
 ## ✨ Features
 
 - **Real-time XML Structure Visualization**: Parse XML files and display their hierarchical structure in a tree view
+- **XML Text Editor with Syntax Highlighting**: Edit XML content directly with syntax highlighting and validation
+- **Search and Replace**: Advanced search functionality with regex support and multi-scope search
+- **Code Folding**: XML structure folding with visual indicators and keyboard shortcuts
+- **Multi-format Serialization**: Support for XML, JSON, YAML, and CSV serialization/deserialization
 - **VSCode-like Interface**: Dark theme with green accents, similar to Visual Studio Code
 - **Node Details Display**: Click on any node to see detailed information including attributes, path, and depth
-- **File Operations**: Open, parse, and save XML files
+- **File Operations**: Open, parse, edit, and save XML files
+- **Format Conversion**: Convert between different data formats (XML ↔ JSON, XML ↔ YAML, etc.)
 - **Comprehensive Testing**: Full unit test coverage using Google Test
+- **Automated Build System**: Python-based build and test automation scripts
 
 ## Screenshots
 
@@ -103,8 +109,13 @@ make test
 ```
 
 **Or use our automated build script:**
-```shell
-python3 ./scripts/build.py
+```bash
+python3 scripts/build.py
+```
+
+**Run tests with:**
+```bash
+python3 scripts/run_tests.py
 ```
 
 ## 🎯 Usage
@@ -112,7 +123,10 @@ python3 ./scripts/build.py
 1. **Open an XML file**: Click "Open XML File" or use File → Open
 2. **Parse the XML**: Click "Parse XML" to generate the visual structure
 3. **Explore the structure**: Click on nodes in the tree view to see details
-4. **Save modifications**: Use File → Save As to save the parsed XML
+4. **Edit XML content**: Use the built-in XML editor with syntax highlighting
+5. **Search and replace**: Use Ctrl+F to find and replace text in XML
+6. **Code folding**: Use Ctrl+Shift+[ to fold all, Ctrl+Shift+] to unfold all
+7. **Save modifications**: Use File → Save As to save the parsed XML
 
 ## 📁 Project Structure
 
@@ -122,18 +136,30 @@ Cxml/
 ├── include/                # Header files
 │   ├── xml_node.h         # XML node class definition
 │   ├── xml_parser.h       # XML parser class definition
+│   ├── xml_serializer.h   # XML serializer class definition
+│   ├── xml_highlighter.h  # XML syntax highlighter
+│   ├── search_dialog.h    # Search and replace dialog
+│   ├── code_folding.h     # Code folding functionality
 │   └── main_window.h      # Main window class definition
 ├── src/                   # Source files
 │   ├── xml_node.cpp       # XML node implementation
 │   ├── xml_parser.cpp     # XML parser implementation
+│   ├── xml_serializer.cpp # XML serializer implementation
+│   ├── xml_highlighter.cpp # XML syntax highlighter implementation
+│   ├── search_dialog.cpp  # Search and replace dialog implementation
+│   ├── code_folding.cpp   # Code folding implementation
 │   ├── main_window.cpp    # Main window implementation
 │   └── main.cpp          # Application entry point
 ├── test/                  # Test files
 │   ├── main.cpp          # Test entry point
-│   └── xml_parser_test.cpp # Unit tests
+│   ├── xml_parser_test.cpp # XML parser unit tests
+│   ├── xml_serializer_test.cpp # XML serializer unit tests
+│   ├── search_test.cpp    # Search functionality tests
+│   └── code_folding_test.cpp # Code folding tests
 ├── scripts/               # Build and utility scripts
 │   ├── build.py          # Automated build script
-│   └── install_dependencies.py # Dependency installation script
+│   ├── install_dependencies.py # Dependency installation script
+│   └── run_tests.py      # Test runner script
 └── examples/              # Sample XML files
     ├── sample.xml        # Complex XML example
     └── simple.xml        # Simple XML example
