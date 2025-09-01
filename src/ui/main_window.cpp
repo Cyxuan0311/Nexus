@@ -23,6 +23,8 @@
 #include <QMessageBox>
 #include <fstream>
 #include <stdexcept>
+#include "markdown_highlighter.h"
+#include "cpp_highlighter.h"
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent) {
@@ -37,8 +39,11 @@ MainWindow::MainWindow(QWidget *parent)
     originalXmlContent_ = "";
     searchDialog_ = nullptr;
     currentSearchIndex_ = -1;
+    isMarkdownMode_ = false;
+    isCppMode_ = false;
+    currentHighlighter_ = nullptr;
     
-    setWindowTitle("Cxml - XML Visualizer");
+    setWindowTitle("Nexus - 多功能代码编辑器与可视化工具");
     resize(1400, 900);
 }
 
@@ -57,7 +62,7 @@ void MainWindow::setupUi() {
     
     // File controls
     QHBoxLayout* fileLayout = new QHBoxLayout();
-    openButton_ = new QPushButton("Open XML File");
+    openButton_ = new QPushButton("Open File");
     fileLabel_ = new QLabel("No file selected");
     fileLabel_->setStyleSheet("color: #4EC9B0; font-weight: bold;");
     fileLayout->addWidget(openButton_);
@@ -72,32 +77,60 @@ void MainWindow::setupUi() {
     treeWidget_->setAlternatingRowColors(true);
     leftLayout->addWidget(treeWidget_);
     
-    // Parse button
+    // Parse buttons
     parseButton_ = new QPushButton("Parse XML");
     parseButton_->setEnabled(false);
     leftLayout->addWidget(parseButton_);
     
-    // Right panel
+    cppParseButton_ = new QPushButton("Parse C++");
+    cppParseButton_->setEnabled(false);
+    leftLayout->addWidget(cppParseButton_);
+    
+    graphButton_ = new QPushButton("生成函数关系图");
+    graphButton_->setEnabled(false);
+    leftLayout->addWidget(graphButton_);
+    
+    // Right panel (Tabs)
     rightPanel_ = new QWidget();
     QVBoxLayout* rightLayout = new QVBoxLayout(rightPanel_);
     rightLayout->setContentsMargins(0, 0, 0, 0);
     
+    rightTabs_ = new QTabWidget(rightPanel_);
+    
+    QWidget* detailsTab = new QWidget();
+    QVBoxLayout* detailsLayout = new QVBoxLayout(detailsTab);
     QLabel* detailsLabel = new QLabel("Node Details");
     detailsLabel->setStyleSheet("color: #4EC9B0; font-weight: bold; font-size: 14px;");
-    rightLayout->addWidget(detailsLabel);
-    
     detailsTextEdit_ = new QTextEdit();
     detailsTextEdit_->setReadOnly(true);
-    rightLayout->addWidget(detailsTextEdit_);
+    detailsLayout->addWidget(detailsLabel);
+    detailsLayout->addWidget(detailsTextEdit_);
+    rightTabs_->addTab(detailsTab, "Details");
     
-    // Center panel for XML editor
+    QWidget* previewTab = new QWidget();
+    QVBoxLayout* previewLayout = new QVBoxLayout(previewTab);
+    QLabel* previewLabel = new QLabel("Markdown Preview");
+    previewLabel->setStyleSheet("color: #4EC9B0; font-weight: bold; font-size: 14px;");
+    markdownPreview_ = new QTextBrowser();
+    markdownPreview_->setOpenExternalLinks(true);
+    previewLayout->addWidget(previewLabel);
+    previewLayout->addWidget(markdownPreview_);
+    rightTabs_->addTab(previewTab, "Preview");
+    
+    // Function Graph Tab
+    functionGraphView_ = new FunctionGraphView();
+    rightTabs_->addTab(functionGraphView_, "函数关系图");
+    
+    rightLayout->addWidget(rightTabs_);
+    
+    // Center panel for editor
     centerPanel_ = new QWidget();
     QVBoxLayout* centerLayout = new QVBoxLayout(centerPanel_);
     centerLayout->setContentsMargins(0, 0, 0, 0);
     
-    // XML Editor controls
+    // Editor controls
     QHBoxLayout* editorControlsLayout = new QHBoxLayout();
-    editButton_ = new QPushButton("Edit XML");
+    editButton_ = new QPushButton("Edit");
     saveButton_ = new QPushButton("Save Changes");
     saveButton_->setEnabled(false);
     editorControlsLayout->addWidget(editButton_);
@@ -106,14 +139,14 @@ void MainWindow::setupUi() {
     
     centerLayout->addLayout(editorControlsLayout);
     
-    // XML Editor
-    xmlEditor_ = new QPlainTextEdit();
+    // Editor
+    xmlEditor_ = new FoldingTextEdit();
     xmlEditor_->setReadOnly(true);
     xmlEditor_->setFont(QFont("Consolas", 12));
     xmlEditor_->setLineWrapMode(QPlainTextEdit::NoWrap);
     
-    // Apply syntax highlighting
-    new XmlHighlighter(xmlEditor_->document());
+    // Default XML highlighter
+    currentHighlighter_ = new XmlHighlighter(xmlEditor_->document());
     
     centerLayout->addWidget(xmlEditor_);
     
@@ -126,9 +159,12 @@ void MainWindow::setupUi() {
     // Connect signals
     connect(openButton_, &QPushButton::clicked, this, &MainWindow::openFile);
     connect(parseButton_, &QPushButton::clicked, this, &MainWindow::parseXml);
+    connect(cppParseButton_, &QPushButton::clicked, this, &MainWindow::parseCpp);
+    connect(graphButton_, &QPushButton::clicked, this, &MainWindow::generateFunctionGraph);
     connect(editButton_, &QPushButton::clicked, this, &MainWindow::toggleEditMode);
     connect(saveButton_, &QPushButton::clicked, this, &MainWindow::saveXmlContent);
     connect(treeWidget_, &QTreeWidget::itemClicked, this, &MainWindow::onTreeItemClicked);
+    connect(xmlEditor_, &QPlainTextEdit::textChanged, this, &MainWindow::renderMarkdownPreview);
 }
 
 void MainWindow::setupMenuBar() {
@@ -371,44 +407,117 @@ void MainWindow::setupStyle() {
 }
 
 void MainWindow::openFile() {
+    QString filters = "C++ Files (*.cpp *.cc *.cxx *.h *.hpp *.hxx);;XML Files (*.xml);;Markdown Files (*.md *.markdown);;All Files (*)";
     QString fileName = QFileDialog::getOpenFileName(this,
-        "Open XML File", "", "XML Files (*.xml);;All Files (*)");
+        "Open File", "", filters);
     
     if (!fileName.isEmpty()) {
         currentFilePath_ = fileName.toStdString();
         fileLabel_->setText(QFileInfo(fileName).fileName());
         parseButton_->setEnabled(true);
+        cppParseButton_->setEnabled(true);
         
-        // Load and display XML content in editor
-        loadXmlContent(fileName);
+        // Load content
+        QFile file(fileName);
+        if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QTextStream in(&file);
+            QString content = in.readAll();
+            file.close();
+            xmlEditor_->setPlainText(content);
+            originalXmlContent_ = content;
+            isEditing_ = false;
+            editButton_->setEnabled(true);
+            saveButton_->setEnabled(false);
+            xmlEditor_->setReadOnly(true);
+        } else {
+            QMessageBox::critical(this, "Error", "Failed to open file: " + fileName);
+            return;
+        }
+        
+        // Mode + highlighter
+        isMarkdownMode_ = isCurrentFileMarkdown();
+        isCppMode_ = isCurrentFileCpp();
+        applyHighlighterForCurrentFile();
+        renderMarkdownPreview();
         
         statusBar()->showMessage("File loaded: " + fileName);
     }
 }
 
-void MainWindow::loadXmlContent(const QString& fileName) {
-    QFile file(fileName);
-    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QTextStream in(&file);
-        QString content = in.readAll();
-        file.close();
-        
-        xmlEditor_->setPlainText(content);
-        originalXmlContent_ = content;
-        isEditing_ = false;
-        
-        // Update button states
-        editButton_->setEnabled(true);
-        saveButton_->setEnabled(false);
-        xmlEditor_->setReadOnly(true);
-    } else {
-        QMessageBox::critical(this, "Error", "Failed to open file: " + fileName);
+bool MainWindow::isCurrentFileMarkdown() const {
+    QString qpath = QString::fromStdString(currentFilePath_).toLower();
+    return qpath.endsWith(".md") || qpath.endsWith(".markdown");
+}
+
+bool MainWindow::isCurrentFileCpp() const {
+    QString qpath = QString::fromStdString(currentFilePath_).toLower();
+    return qpath.endsWith(".cpp") || qpath.endsWith(".cc") || qpath.endsWith(".cxx") ||
+           qpath.endsWith(".h") || qpath.endsWith(".hpp") || qpath.endsWith(".hxx");
+}
+
+void MainWindow::applyHighlighterForCurrentFile() {
+    if (currentHighlighter_) {
+        delete currentHighlighter_;
+        currentHighlighter_ = nullptr;
     }
+    if (isMarkdownMode_) {
+        currentHighlighter_ = new MarkdownHighlighter(xmlEditor_->document());
+        rightTabs_->setTabEnabled(0, false); // Details tab off for Markdown
+        rightTabs_->setTabEnabled(2, false); // Function graph tab off for Markdown
+        rightTabs_->setCurrentIndex(1);
+        if (parseButton_) parseButton_->setEnabled(false);
+        if (cppParseButton_) cppParseButton_->setEnabled(false);
+        if (graphButton_) graphButton_->setEnabled(false);
+    } else if (isCppMode_) {
+        currentHighlighter_ = new CppHighlighter(xmlEditor_->document());
+        rightTabs_->setTabEnabled(0, false); // Details tab off for C++
+        rightTabs_->setTabEnabled(1, false); // Preview tab off for C++
+        rightTabs_->setTabEnabled(2, true);  // Function graph tab on for C++
+        rightTabs_->setCurrentIndex(2);
+        if (parseButton_) parseButton_->setEnabled(false);
+        if (cppParseButton_) cppParseButton_->setEnabled(true);
+    } else {
+        currentHighlighter_ = new XmlHighlighter(xmlEditor_->document());
+        rightTabs_->setTabEnabled(0, true);
+        rightTabs_->setTabEnabled(1, false);
+        rightTabs_->setTabEnabled(2, false);
+        rightTabs_->setCurrentIndex(0);
+        if (parseButton_) parseButton_->setEnabled(true);
+        if (cppParseButton_) cppParseButton_->setEnabled(false);
+        if (graphButton_) graphButton_->setEnabled(false);
+    }
+}
+
+void MainWindow::renderMarkdownPreview() {
+    if (!isMarkdownMode_ || !markdownPreview_) return;
+    // 简化：使用 QTextBrowser 的 setMarkdown（Qt >= 5.14）或手动降级
+#if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
+    markdownPreview_->setMarkdown(xmlEditor_->toPlainText());
+#else
+    // Fallback: 基于简单替换（粗体/斜体/标题/代码）转为 HTML
+    QString md = xmlEditor_->toPlainText();
+    QString html = md;
+    html.replace(QRegExp("^######\\s+(.*)$"), "<h6>\\1</h6>");
+    html.replace(QRegExp("^#####\\s+(.*)$"), "<h5>\\1</h5>");
+    html.replace(QRegExp("^####\\s+(.*)$"), "<h4>\\1</h4>");
+    html.replace(QRegExp("^###\\s+(.*)$"), "<h3>\\1</h3>");
+    html.replace(QRegExp("^##\\s+(.*)$"), "<h2>\\1</h2>");
+    html.replace(QRegExp("^#\\s+(.*)$"), "<h1>\\1</h1>");
+    html.replace(QRegExp("\\*\\*([^*]+)\\*\\*"), "<b>\\1</b>");
+    html.replace(QRegExp("_([^_]+)_"), "<i>\\1</i>");
+    html.replace(QRegExp("`([^`]+)`"), "<code>\\1</code>");
+    markdownPreview_->setHtml(html);
+#endif
 }
 
 void MainWindow::parseXml() {
     if (currentFilePath_.empty()) {
-        QMessageBox::warning(this, "Warning", "Please select an XML file first.");
+        QMessageBox::warning(this, "Warning", "Please select a file first.");
+        return;
+    }
+    
+    if (isMarkdownMode_) {
+        QMessageBox::information(this, "Info", "Markdown files do not support XML parsing.");
         return;
     }
     
@@ -431,6 +540,23 @@ void MainWindow::parseXml() {
 }
 
 void MainWindow::saveFile() {
+    if (isMarkdownMode_) {
+        QString fileName = QFileDialog::getSaveFileName(this,
+            "Save Markdown File", "", "Markdown Files (*.md *.markdown);;All Files (*)");
+        if (!fileName.isEmpty()) {
+            QFile file(fileName);
+            if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                QTextStream out(&file);
+                out << xmlEditor_->toPlainText();
+                file.close();
+                statusBar()->showMessage("File saved: " + fileName);
+            } else {
+                QMessageBox::critical(this, "Error", "Failed to save file.");
+            }
+        }
+        return;
+    }
+    
     if (!rootNode_) {
         QMessageBox::warning(this, "Warning", "No XML data to save.");
         return;
@@ -460,12 +586,11 @@ void MainWindow::saveFile() {
 void MainWindow::about() {
     QMessageBox::about(this, "About Cxml",
         "<h3>Cxml - XML Visualizer</h3>"
-        "<p>A Qt-based XML file parser and visualizer with a VSCode-like interface.</p>"
+        "<p>A Qt-based XML and Markdown editor with preview and XML visualizer.</p>"
         "<p>Features:</p>"
         "<ul>"
         "<li>Real-time XML structure visualization</li>"
-        "<li>Hierarchical tree view</li>"
-        "<li>Node details display</li>"
+        "<li>Markdown editing with syntax highlighting and preview</li>"
         "<li>Dark theme with green accents</li>"
         "</ul>"
         "<p>Built with Qt5, C++17, and CMake</p>");
@@ -899,13 +1024,13 @@ void MainWindow::toggleEditMode() {
         xmlEditor_->setReadOnly(false);
         editButton_->setText("Cancel Edit");
         saveButton_->setEnabled(true);
-        statusBar()->showMessage("Edit mode enabled - you can now modify the XML");
+        statusBar()->showMessage(isMarkdownMode_ ? "Edit mode enabled - you can now modify the Markdown" : "Edit mode enabled - you can now modify the XML");
     } else {
         // Cancel edit mode
         isEditing_ = false;
         xmlEditor_->setPlainText(originalXmlContent_);
         xmlEditor_->setReadOnly(true);
-        editButton_->setText("Edit XML");
+        editButton_->setText("Edit");
         saveButton_->setEnabled(false);
         statusBar()->showMessage("Edit cancelled - changes discarded");
     }
@@ -917,6 +1042,26 @@ void MainWindow::saveXmlContent() {
     }
     
     QString newContent = xmlEditor_->toPlainText();
+
+    if (isMarkdownMode_) {
+        // Save Markdown without XML validation
+        QFile file(QString::fromStdString(currentFilePath_));
+        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream out(&file);
+            out << newContent;
+            file.close();
+            
+            originalXmlContent_ = newContent;
+            isEditing_ = false;
+            xmlEditor_->setReadOnly(true);
+            editButton_->setText("Edit");
+            saveButton_->setEnabled(false);
+            statusBar()->showMessage("Markdown content saved successfully");
+        } else {
+            QMessageBox::critical(this, "Error", "Failed to save Markdown content");
+        }
+        return;
+    }
     
     // Validate XML before saving
     try {
@@ -949,11 +1094,55 @@ void MainWindow::saveXmlContent() {
         originalXmlContent_ = newContent;
         isEditing_ = false;
         xmlEditor_->setReadOnly(true);
-        editButton_->setText("Edit XML");
+        editButton_->setText("Edit");
         saveButton_->setEnabled(false);
         
         statusBar()->showMessage("XML content saved successfully");
     } else {
         QMessageBox::critical(this, "Error", "Failed to save XML content");
     }
+}
+
+void MainWindow::parseCpp() {
+    if (currentFilePath_.empty()) {
+        QMessageBox::warning(this, "Warning", "请先打开一个C++文件");
+        return;
+    }
+    
+    QString content = xmlEditor_->toPlainText();
+    std::string cppContent = content.toStdString();
+    
+    if (cppParser_.parseFile(cppContent)) {
+        statusBar()->showMessage("C++ 文件解析成功");
+        graphButton_->setEnabled(true);
+        
+        // 显示解析统计信息
+        const auto& functions = cppParser_.getFunctions();
+        const auto& classes = cppParser_.getClasses();
+        QString info = QString("解析完成：发现 %1 个函数，%2 个类")
+                      .arg(functions.size())
+                      .arg(classes.size());
+        QMessageBox::information(this, "解析结果", info);
+    } else {
+        QMessageBox::critical(this, "Error", "C++ 文件解析失败");
+        graphButton_->setEnabled(false);
+    }
+}
+
+void MainWindow::generateFunctionGraph() {
+    if (cppParser_.getFunctions().empty()) {
+        QMessageBox::warning(this, "Warning", "请先解析C++文件");
+        return;
+    }
+    
+    // 设置解析数据到图形视图
+    functionGraphView_->setParserData(cppParser_);
+    
+    // 生成函数关系图
+    functionGraphView_->generateGraph();
+    
+    // 切换到函数关系图标签页
+    rightTabs_->setCurrentIndex(2);
+    
+    statusBar()->showMessage("函数关系图生成完成");
 } 
