@@ -1,33 +1,46 @@
-# Cxml - XML Visualizer
+# Nexus - Multi-format Code Editor & Visualizer
 
 [![C++](https://img.shields.io/badge/C++-17-blue.svg?style=flat&logo=c%2B%2B)](https://isocpp.org/)
 [![Qt](https://img.shields.io/badge/Qt-5.12+-green.svg?style=flat&logo=qt)](https://www.qt.io/)
 [![CMake](https://img.shields.io/badge/CMake-3.16+-red.svg?style=flat&logo=cmake)](https://cmake.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat)](LICENSE)
-[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg?style=flat)](https://github.com/yourusername/Cxml)
-[![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen.svg?style=flat)](https://github.com/yourusername/Cxml)
+[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg?style=flat)](https://github.com/yourusername/Nexus)
+[![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen.svg?style=flat)](https://github.com/yourusername/Nexus)
 
-A Qt-based XML file parser and visualizer with a VSCode-like interface, built with C++17, Qt5, and CMake.
+A Qt-based multi-format code editor, parser and visualizer with a VSCode-like interface, supporting XML, Markdown, and C++ files. Built with C++17, Qt5, and CMake.
 
 ## ✨ Features
 
+### Core Functionality
+- **Multi-format Code Editor**: Support for XML, Markdown, and C++ files with syntax highlighting
 - **Real-time XML Structure Visualization**: Parse XML files and display their hierarchical structure in a tree view
-- **XML Text Editor with Syntax Highlighting**: Edit XML content directly with syntax highlighting and validation
+- **Markdown Preview**: Live preview of Markdown content
+- **C++ Function Analysis**: Parse C++ files to extract function definitions, parameters, and return types
+
+### Advanced Features
+- **Function Relationship Visualization**: Generate interactive graphs showing function calls and dependencies
+- **Multiple Layout Algorithms**: Hierarchical, circular, and force-directed graph layouts
 - **Search and Replace**: Advanced search functionality with regex support and multi-scope search
-- **Code Folding**: XML structure folding with visual indicators and keyboard shortcuts
+- **Code Folding**: Structure folding with visual indicators and keyboard shortcuts
 - **Multi-format Serialization**: Support for XML, JSON, YAML, and CSV serialization/deserialization
-- **VSCode-like Interface**: Dark theme with green accents, similar to Visual Studio Code
-- **Node Details Display**: Click on any node to see detailed information including attributes, path, and depth
-- **File Operations**: Open, parse, edit, and save XML files
+
+### User Interface
+- **VSCode-like Interface**: Dark theme with green accents
+- **Interactive Function Graph**: Click on function nodes to view detailed information
+- **Node Details Display**: Click on any node to see detailed information including attributes, path, and depth (XML)
+- **File Operations**: Open, parse, edit, and save files
 - **Format Conversion**: Convert between different data formats (XML ↔ JSON, XML ↔ YAML, etc.)
+
+### Development Tools
 - **Comprehensive Testing**: Full unit test coverage using Google Test
 - **Automated Build System**: Python-based build and test automation scripts
 
 ## Screenshots
 
 The application features a split-pane interface:
-- **Left Panel**: File controls and XML structure tree view
-- **Right Panel**: Detailed node information display
+- **Left Panel**: File controls and structure tree view (XML) or function analysis controls (C++)
+- **Center Panel**: Code editor with syntax highlighting
+- **Right Panel**: Multiple tabs for details, preview, and function relationship visualization
 
 ## 🛠️ Tech Stack
 
@@ -77,7 +90,7 @@ python3 ./scripts/install_dependencies.py
 1. **Clone the repository:**
 ```bash
 git clone <repository-url>
-cd Cxml
+cd Nexus
 ```
 
 2. **Create build directory:**
@@ -100,12 +113,12 @@ make -j$(nproc)
 ```bash
 make test
 # or run tests directly:
-./bin/Cxml_tests
+./bin/Nexus_tests
 ```
 
 6. **Run the application:**
 ```bash
-./bin/Cxml
+./bin/Nexus
 ```
 
 **Or use our automated build script:**
@@ -120,61 +133,105 @@ python3 scripts/run_tests.py
 
 ## 🎯 Usage
 
-1. **Open an XML file**: Click "Open XML File" or use File → Open
-2. **Parse the XML**: Click "Parse XML" to generate the visual structure
-3. **Explore the structure**: Click on nodes in the tree view to see details
-4. **Edit XML content**: Use the built-in XML editor with syntax highlighting
-5. **Search and replace**: Use Ctrl+F to find and replace text in XML
-6. **Code folding**: Use Ctrl+Shift+[ to fold all, Ctrl+Shift+] to unfold all
-7. **Save modifications**: Use File → Save As to save the parsed XML
+### General Operations
+1. **Open a file**: Click "Open File" or use File → Open
+2. **Edit content**: Use the built-in editor with syntax highlighting
+3. **Search and replace**: Use Ctrl+F to find and replace text
+4. **Code folding**: Use Ctrl+Shift+[ to fold all, Ctrl+Shift+] to unfold all
+5. **Save modifications**: Use File → Save As
+
+### XML Files
+1. **Parse XML**: Click "Parse XML" to generate the visual structure
+2. **Explore the structure**: Click on nodes in the tree view to see details
+
+### Markdown Files
+1. **Live preview**: Preview updates automatically as you edit
+2. **Syntax highlighting**: Full Markdown syntax support
+
+### C++ Files
+1. **Parse C++**: Click "Parse C++" to analyze function definitions and relationships
+2. **Generate function graph**: Click "Generate Function Graph" to visualize function calls
+3. **Interactive exploration**: Click on function nodes to view detailed information
+4. **Multiple layouts**: Choose between hierarchical, circular, and force-directed layouts
 
 ## 📁 Project Structure
 
 ```
-Cxml/
-├── CMakeLists.txt          # Main CMake configuration
-├── include/                # Header files
-│   ├── xml_node.h         # XML node class definition
-│   ├── xml_parser.h       # XML parser class definition
-│   ├── xml_serializer.h   # XML serializer class definition
-│   ├── xml_highlighter.h  # XML syntax highlighter
-│   ├── search_dialog.h    # Search and replace dialog
-│   ├── code_folding.h     # Code folding functionality
-│   └── main_window.h      # Main window class definition
-├── src/                   # Source files
-│   ├── xml_node.cpp       # XML node implementation
-│   ├── xml_parser.cpp     # XML parser implementation
-│   ├── xml_serializer.cpp # XML serializer implementation
-│   ├── xml_highlighter.cpp # XML syntax highlighter implementation
-│   ├── search_dialog.cpp  # Search and replace dialog implementation
-│   ├── code_folding.cpp   # Code folding implementation
-│   ├── main_window.cpp    # Main window implementation
-│   └── main.cpp          # Application entry point
-├── test/                  # Test files
-│   ├── main.cpp          # Test entry point
-│   ├── xml_parser_test.cpp # XML parser unit tests
-│   ├── xml_serializer_test.cpp # XML serializer unit tests
-│   ├── search_test.cpp    # Search functionality tests
-│   └── code_folding_test.cpp # Code folding tests
-├── scripts/               # Build and utility scripts
-│   ├── build.py          # Automated build script
-│   ├── install_dependencies.py # Dependency installation script
-│   └── run_tests.py      # Test runner script
-└── examples/              # Sample XML files
-    ├── sample.xml        # Complex XML example
-    └── simple.xml        # Simple XML example
+Nexus/
+├── CMakeLists.txt
+├── include/
+│   ├── ui/
+│   │   ├── main_window.h
+│   │   ├── search_dialog.h
+│   │   ├── code_folding.h
+│   │   └── function_graph_view.h
+│   ├── core/
+│   │   ├── xml_node.h
+│   │   ├── xml_parser.h
+│   │   ├── xml_serializer.h
+│   │   └── cpp_parser.h
+│   ├── syntax/
+│   │   ├── xml_highlighter.h
+│   │   ├── markdown_highlighter.h
+│   │   └── cpp_highlighter.h
+│   └── features/
+│       └── (reserved for feature modules)
+├── src/
+│   ├── app/
+│   │   └── main.cpp
+│   ├── ui/
+│   │   ├── main_window.cpp
+│   │   ├── search_dialog.cpp
+│   │   ├── code_folding.cpp
+│   │   └── function_graph_view.cpp
+│   ├── core/
+│   │   ├── xml_node.cpp
+│   │   ├── xml_parser.cpp
+│   │   ├── xml_serializer.cpp
+│   │   └── cpp_parser.cpp
+│   └── syntax/
+│       ├── xml_highlighter.cpp
+│       ├── markdown_highlighter.cpp
+│       └── cpp_highlighter.cpp
+├── test/
+│   ├── main.cpp
+│   ├── xml_parser_test.cpp
+│   ├── xml_serializer_test.cpp
+│   ├── search_test.cpp
+│   └── code_folding_test.cpp
+├── scripts/
+│   ├── build.py
+│   ├── install_dependencies.py
+│   └── run_tests.py
+└── examples/
+    ├── sample.xml
+    ├── simple.xml
+    └── sample.cpp
 ```
+
 
 ## 🧪 Testing
 
 The project includes comprehensive unit tests covering:
 
+### XML Functionality
 - XML parsing functionality
 - Node creation and manipulation
 - Attribute handling
 - Nested element parsing
 - Error handling
 - XML entity escaping
+
+### C++ Functionality
+- C++ function parsing and analysis
+- Function parameter extraction
+- Function call relationship detection
+- Class definition parsing
+
+### UI Components
+- Search and replace functionality
+- Code folding operations
+- Function graph visualization
 
 Run tests with:
 ```bash
@@ -195,8 +252,24 @@ make test
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+## 🆕 What's New
+
+### C++ Support (Latest Update)
+- **C++ Syntax Highlighting**: Full support for C++17 syntax with VSCode-like colors
+- **Function Analysis**: Automatic parsing of function definitions, parameters, and return types
+- **Class Structure Analysis**: Detection of class definitions, inheritance, and member functions
+- **Function Call Visualization**: Interactive graph showing function dependencies and call relationships
+- **Multiple Layout Algorithms**: Choose between hierarchical, circular, and force-directed layouts
+- **Interactive Exploration**: Click on function nodes to view detailed information
+
+### Enhanced User Experience
+- **Multi-format Editor**: Seamless switching between XML, Markdown, and C++ files
+- **Context-aware Interface**: UI adapts based on file type for optimal workflow
+- **Real-time Analysis**: Instant parsing and visualization of C++ code structure
+
 ## 🙏 Acknowledgments
 
 - Built with Qt5 for the user interface
 - Uses Google Test for unit testing
-- Inspired by Visual Studio Code's interface design 
+- Inspired by Visual Studio Code's interface design
+- C++ parsing capabilities powered by custom regex-based analysis engine 
