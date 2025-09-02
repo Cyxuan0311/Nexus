@@ -45,8 +45,16 @@ source_group("Syntax/Markdown" FILES
     src/syntax/markdown_highlighter.cpp include/syntax/markdown_highlighter.h)
 source_group("Syntax/CPP" FILES 
     src/syntax/cpp_highlighter.cpp include/syntax/cpp_highlighter.h)
+source_group("Syntax/Python" FILES 
+    src/syntax/python_highlighter.cpp include/syntax/python_highlighter.h)
+source_group("Syntax/Go" FILES 
+    src/syntax/go_highlighter.cpp include/syntax/go_highlighter.h)
 source_group("Core/CPP" FILES 
     src/core/cpp_parser.cpp include/core/cpp_parser.h)
+source_group("Core/Python" FILES 
+    src/core/python_parser.cpp include/core/python_parser.h)
+source_group("Core/Go" FILES 
+    src/core/go_parser.cpp include/core/go_parser.h)
 source_group("UI/Graph" FILES 
     src/ui/function_graph_view.cpp include/ui/function_graph_view.h)
 source_group("App" FILES src/app/main.cpp)
