@@ -29,7 +29,11 @@
 #include "xml_serializer.h"
 #include "xml_highlighter.h"
 #include "cpp_highlighter.h"
+#include "python_highlighter.h"
+#include "go_highlighter.h"
 #include "cpp_parser.h"
+#include "python_parser.h"
+#include "go_parser.h"
 #include "function_graph_view.h"
 #include "search_dialog.h"
 #include "code_folding.h"
@@ -45,6 +49,8 @@ private slots:
 	void openFile();
 	void parseXml();
 	void parseCpp();
+	void parsePython();
+	void parseGo();
 	void generateFunctionGraph();
 	void saveFile();
 	void exportToJson();
@@ -75,6 +81,10 @@ private:
 	void applyHighlighterForCurrentFile();
 	bool isCurrentFileMarkdown() const;
 	bool isCurrentFileCpp() const;
+	bool isCurrentFilePython() const;
+	bool isCurrentFileGo() const;
+	void adaptPythonToCppParser(CppParser& cppParser);
+	void adaptGoToCppParser(CppParser& cppParser);
 	
 	// UI Components
 	QSplitter* mainSplitter_;
@@ -86,6 +96,8 @@ private:
 	FoldingTextEdit* xmlEditor_;
 	QPushButton* parseButton_;
 	QPushButton* cppParseButton_;
+	QPushButton* pythonParseButton_;
+	QPushButton* goParseButton_;
 	QPushButton* graphButton_;
 	QPushButton* openButton_;
 	QPushButton* editButton_;
@@ -99,6 +111,8 @@ private:
 	XmlParser parser_;
 	XmlSerializer serializer_;
 	CppParser cppParser_;
+	PythonParser pythonParser_;
+	GoParser goParser_;
 	std::shared_ptr<XmlNode> rootNode_;
 	std::string currentFilePath_;
 	bool isEditing_;
@@ -108,6 +122,8 @@ private:
 	int currentSearchIndex_;
 	bool isMarkdownMode_;
 	bool isCppMode_;
+	bool isPythonMode_;
+	bool isGoMode_;
 	QSyntaxHighlighter* currentHighlighter_;
 	
 	// Actions
