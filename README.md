@@ -1,21 +1,31 @@
 # Nexus - Multi-format Code Editor & Visualizer
 
+<div align="center">
+
+![Nexus Logo](icon/log.svg)
+
+</div>
+
 [![C++](https://img.shields.io/badge/C++-17-blue.svg?style=flat&logo=c%2B%2B)](https://isocpp.org/)
+[![Python](https://img.shields.io/badge/Python-3.6+-yellow.svg?style=flat&logo=python)](https://www.python.org/)
+[![Go](https://img.shields.io/badge/Go-1.16+-00ADD8.svg?style=flat&logo=go)](https://golang.org/)
 [![Qt](https://img.shields.io/badge/Qt-5.12+-green.svg?style=flat&logo=qt)](https://www.qt.io/)
 [![CMake](https://img.shields.io/badge/CMake-3.16+-red.svg?style=flat&logo=cmake)](https://cmake.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat)](LICENSE)
 [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg?style=flat)](https://github.com/yourusername/Nexus)
 [![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen.svg?style=flat)](https://github.com/yourusername/Nexus)
 
-A Qt-based multi-format code editor, parser and visualizer with a VSCode-like interface, supporting XML, Markdown, and C++ files. Built with C++17, Qt5, and CMake.
+A Qt-based multi-format code editor, parser and visualizer with a VSCode-like interface, supporting XML, Markdown, C++, Python, and Go files. Built with C++17, Qt5, and CMake.
 
 ## ✨ Features
 
 ### Core Functionality
-- **Multi-format Code Editor**: Support for XML, Markdown, and C++ files with syntax highlighting
+- **Multi-format Code Editor**: Support for XML, Markdown, C++, Python, and Go files with syntax highlighting
 - **Real-time XML Structure Visualization**: Parse XML files and display their hierarchical structure in a tree view
 - **Markdown Preview**: Live preview of Markdown content
 - **C++ Function Analysis**: Parse C++ files to extract function definitions, parameters, and return types
+- **Python Function Analysis**: Parse Python files to extract function definitions, classes, decorators, and type annotations
+- **Go Function Analysis**: Parse Go files to extract function definitions, methods, structs, interfaces, and package information
 
 ### Advanced Features
 - **Function Relationship Visualization**: Generate interactive graphs showing function calls and dependencies
@@ -26,8 +36,9 @@ A Qt-based multi-format code editor, parser and visualizer with a VSCode-like in
 
 ### User Interface
 - **VSCode-like Interface**: Dark theme with green accents
-- **Interactive Function Graph**: Click on function nodes to view detailed information
+- **Interactive Function Graph**: Click on function nodes to view detailed information for C++, Python, and Go
 - **Node Details Display**: Click on any node to see detailed information including attributes, path, and depth (XML)
+- **Context-aware Interface**: UI adapts based on file type (XML, Markdown, C++, Python, Go)
 - **File Operations**: Open, parse, edit, and save files
 - **Format Conversion**: Convert between different data formats (XML ↔ JSON, XML ↔ YAML, etc.)
 
@@ -154,6 +165,18 @@ python3 scripts/run_tests.py
 3. **Interactive exploration**: Click on function nodes to view detailed information
 4. **Multiple layouts**: Choose between hierarchical, circular, and force-directed layouts
 
+### Python Files
+1. **Parse Python**: Click "Parse Python" to analyze function definitions, classes, and decorators
+2. **Generate function graph**: Click "Generate Function Graph" to visualize function calls and class relationships
+3. **Interactive exploration**: Click on function nodes to view detailed information including type annotations
+4. **Advanced parsing**: Support for async functions, class methods, static methods, and property decorators
+
+### Go Files
+1. **Parse Go**: Click "Parse Go" to analyze function definitions, methods, structs, and interfaces
+2. **Generate function graph**: Click "Generate Function Graph" to visualize function calls and method relationships
+3. **Interactive exploration**: Click on function nodes to view detailed information including receiver types and return values
+4. **Advanced parsing**: Support for methods with receivers, multiple return values, variadic parameters, and exported/unexported functions
+
 ## 📁 Project Structure
 
 ```
@@ -169,11 +192,15 @@ Nexus/
 │   │   ├── xml_node.h
 │   │   ├── xml_parser.h
 │   │   ├── xml_serializer.h
-│   │   └── cpp_parser.h
+│   │   ├── cpp_parser.h
+│   │   ├── python_parser.h
+│   │   └── go_parser.h
 │   ├── syntax/
 │   │   ├── xml_highlighter.h
 │   │   ├── markdown_highlighter.h
-│   │   └── cpp_highlighter.h
+│   │   ├── cpp_highlighter.h
+│   │   ├── python_highlighter.h
+│   │   └── go_highlighter.h
 │   └── features/
 │       └── (reserved for feature modules)
 ├── src/
@@ -188,11 +215,15 @@ Nexus/
 │   │   ├── xml_node.cpp
 │   │   ├── xml_parser.cpp
 │   │   ├── xml_serializer.cpp
-│   │   └── cpp_parser.cpp
+│   │   ├── cpp_parser.cpp
+│   │   ├── python_parser.cpp
+│   │   └── go_parser.cpp
 │   └── syntax/
 │       ├── xml_highlighter.cpp
 │       ├── markdown_highlighter.cpp
-│       └── cpp_highlighter.cpp
+│       ├── cpp_highlighter.cpp
+│       ├── python_highlighter.cpp
+│       └── go_highlighter.cpp
 ├── test/
 │   ├── main.cpp
 │   ├── xml_parser_test.cpp
@@ -206,7 +237,9 @@ Nexus/
 └── examples/
     ├── sample.xml
     ├── simple.xml
-    └── sample.cpp
+    ├── sample.cpp
+    ├── sample.py
+    └── sample.go
 ```
 
 
@@ -227,6 +260,21 @@ The project includes comprehensive unit tests covering:
 - Function parameter extraction
 - Function call relationship detection
 - Class definition parsing
+
+### Python Functionality
+- Python function and class parsing
+- Type annotation extraction
+- Decorator detection and analysis
+- Async function support
+- Class inheritance analysis
+
+### Go Functionality
+- Go function and method parsing
+- Struct and interface analysis
+- Package declaration extraction
+- Method receiver type detection
+- Multiple return value support
+- Variadic parameter handling
 
 ### UI Components
 - Search and replace functionality
@@ -254,22 +302,32 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🆕 What's New
 
-### C++ Support (Latest Update)
+### Programming Language Support (Latest Update)
 - **C++ Syntax Highlighting**: Full support for C++17 syntax with VSCode-like colors
-- **Function Analysis**: Automatic parsing of function definitions, parameters, and return types
-- **Class Structure Analysis**: Detection of class definitions, inheritance, and member functions
+- **Python Syntax Highlighting**: Complete Python syntax support including f-strings, decorators, and type annotations
+- **Go Syntax Highlighting**: Comprehensive Go syntax support including interfaces, channels, goroutines, and build tags
+- **Function Analysis**: Automatic parsing of function definitions, parameters, and return types for C++, Python, and Go
+- **Class/Struct Structure Analysis**: Detection of class definitions (C++/Python), structs and interfaces (Go)
+- **Advanced Language Features**: 
+  - Python: async functions, decorators, type annotations
+  - Go: methods with receivers, multiple return values, variadic parameters
 - **Function Call Visualization**: Interactive graph showing function dependencies and call relationships
 - **Multiple Layout Algorithms**: Choose between hierarchical, circular, and force-directed layouts
 - **Interactive Exploration**: Click on function nodes to view detailed information
 
 ### Enhanced User Experience
-- **Multi-format Editor**: Seamless switching between XML, Markdown, and C++ files
+- **Multi-format Editor**: Seamless switching between XML, Markdown, C++, Python, and Go files
 - **Context-aware Interface**: UI adapts based on file type for optimal workflow
-- **Real-time Analysis**: Instant parsing and visualization of C++ code structure
+- **Real-time Analysis**: Instant parsing and visualization of C++, Python, and Go code structure
+- **Cross-language Support**: Unified function graph visualization for C++, Python, and Go
 
 ## 🙏 Acknowledgments
 
 - Built with Qt5 for the user interface
 - Uses Google Test for unit testing
 - Inspired by Visual Studio Code's interface design
-- C++ parsing capabilities powered by custom regex-based analysis engine 
+- C++, Python, and Go parsing capabilities powered by custom regex-based analysis engines
+- Multi-language syntax highlighting with modern language feature support:
+  - Python 3.6+ features (f-strings, type annotations, async/await)
+  - Go 1.16+ features (interfaces, channels, embedded structs)
+  - C++17 features (auto, lambdas, structured bindings) 
