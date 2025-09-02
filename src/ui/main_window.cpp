@@ -21,10 +21,13 @@
 #include <QIODevice>
 #include <QTextCursor>
 #include <QMessageBox>
+#include <QIcon>
 #include <fstream>
 #include <stdexcept>
 #include "markdown_highlighter.h"
 #include "cpp_highlighter.h"
+#include "python_highlighter.h"
+#include "go_highlighter.h"
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent) {
@@ -41,9 +44,16 @@ MainWindow::MainWindow(QWidget *parent)
     currentSearchIndex_ = -1;
     isMarkdownMode_ = false;
     isCppMode_ = false;
+    isPythonMode_ = false;
+    isGoMode_ = false;
     currentHighlighter_ = nullptr;
     
     setWindowTitle("Nexus - 多功能代码编辑器与可视化工具");
+    
+    // Set window icon
+    QIcon windowIcon("icon/log.svg");
+    setWindowIcon(windowIcon);
+    
     resize(1400, 900);
 }
 
@@ -85,6 +95,14 @@ void MainWindow::setupUi() {
     cppParseButton_ = new QPushButton("Parse C++");
     cppParseButton_->setEnabled(false);
     leftLayout->addWidget(cppParseButton_);
+    
+    pythonParseButton_ = new QPushButton("Parse Python");
+    pythonParseButton_->setEnabled(false);
+    leftLayout->addWidget(pythonParseButton_);
+    
+    goParseButton_ = new QPushButton("Parse Go");
+    goParseButton_->setEnabled(false);
+    leftLayout->addWidget(goParseButton_);
     
     graphButton_ = new QPushButton("生成函数关系图");
     graphButton_->setEnabled(false);
@@ -160,6 +178,8 @@ void MainWindow::setupUi() {
     connect(openButton_, &QPushButton::clicked, this, &MainWindow::openFile);
     connect(parseButton_, &QPushButton::clicked, this, &MainWindow::parseXml);
     connect(cppParseButton_, &QPushButton::clicked, this, &MainWindow::parseCpp);
+    connect(pythonParseButton_, &QPushButton::clicked, this, &MainWindow::parsePython);
+    connect(goParseButton_, &QPushButton::clicked, this, &MainWindow::parseGo);
     connect(graphButton_, &QPushButton::clicked, this, &MainWindow::generateFunctionGraph);
     connect(editButton_, &QPushButton::clicked, this, &MainWindow::toggleEditMode);
     connect(saveButton_, &QPushButton::clicked, this, &MainWindow::saveXmlContent);
@@ -407,7 +427,7 @@ void MainWindow::setupStyle() {
 }
 
 void MainWindow::openFile() {
-    QString filters = "C++ Files (*.cpp *.cc *.cxx *.h *.hpp *.hxx);;XML Files (*.xml);;Markdown Files (*.md *.markdown);;All Files (*)";
+    QString filters = "Go Files (*.go);;Python Files (*.py *.pyw);;C++ Files (*.cpp *.cc *.cxx *.h *.hpp *.hxx);;XML Files (*.xml);;Markdown Files (*.md *.markdown);;All Files (*)";
     QString fileName = QFileDialog::getOpenFileName(this,
         "Open File", "", filters);
     
@@ -416,6 +436,8 @@ void MainWindow::openFile() {
         fileLabel_->setText(QFileInfo(fileName).fileName());
         parseButton_->setEnabled(true);
         cppParseButton_->setEnabled(true);
+        pythonParseButton_->setEnabled(true);
+        goParseButton_->setEnabled(true);
         
         // Load content
         QFile file(fileName);
@@ -437,6 +459,8 @@ void MainWindow::openFile() {
         // Mode + highlighter
         isMarkdownMode_ = isCurrentFileMarkdown();
         isCppMode_ = isCurrentFileCpp();
+        isPythonMode_ = isCurrentFilePython();
+        isGoMode_ = isCurrentFileGo();
         applyHighlighterForCurrentFile();
         renderMarkdownPreview();
         
@@ -455,6 +479,16 @@ bool MainWindow::isCurrentFileCpp() const {
            qpath.endsWith(".h") || qpath.endsWith(".hpp") || qpath.endsWith(".hxx");
 }
 
+bool MainWindow::isCurrentFilePython() const {
+    QString qpath = QString::fromStdString(currentFilePath_).toLower();
+    return qpath.endsWith(".py") || qpath.endsWith(".pyw");
+}
+
+bool MainWindow::isCurrentFileGo() const {
+    QString qpath = QString::fromStdString(currentFilePath_).toLower();
+    return qpath.endsWith(".go");
+}
+
 void MainWindow::applyHighlighterForCurrentFile() {
     if (currentHighlighter_) {
         delete currentHighlighter_;
@@ -467,6 +501,8 @@ void MainWindow::applyHighlighterForCurrentFile() {
         rightTabs_->setCurrentIndex(1);
         if (parseButton_) parseButton_->setEnabled(false);
         if (cppParseButton_) cppParseButton_->setEnabled(false);
+        if (pythonParseButton_) pythonParseButton_->setEnabled(false);
+        if (goParseButton_) goParseButton_->setEnabled(false);
         if (graphButton_) graphButton_->setEnabled(false);
     } else if (isCppMode_) {
         currentHighlighter_ = new CppHighlighter(xmlEditor_->document());
@@ -476,6 +512,31 @@ void MainWindow::applyHighlighterForCurrentFile() {
         rightTabs_->setCurrentIndex(2);
         if (parseButton_) parseButton_->setEnabled(false);
         if (cppParseButton_) cppParseButton_->setEnabled(true);
+        if (pythonParseButton_) pythonParseButton_->setEnabled(false);
+        if (goParseButton_) goParseButton_->setEnabled(false);
+        if (graphButton_) graphButton_->setEnabled(false);
+    } else if (isPythonMode_) {
+        currentHighlighter_ = new PythonHighlighter(xmlEditor_->document());
+        rightTabs_->setTabEnabled(0, false); // Details tab off for Python
+        rightTabs_->setTabEnabled(1, false); // Preview tab off for Python
+        rightTabs_->setTabEnabled(2, true);  // Function graph tab on for Python
+        rightTabs_->setCurrentIndex(2);
+        if (parseButton_) parseButton_->setEnabled(false);
+        if (cppParseButton_) cppParseButton_->setEnabled(false);
+        if (pythonParseButton_) pythonParseButton_->setEnabled(true);
+        if (goParseButton_) goParseButton_->setEnabled(false);
+        if (graphButton_) graphButton_->setEnabled(false);
+    } else if (isGoMode_) {
+        currentHighlighter_ = new GoHighlighter(xmlEditor_->document());
+        rightTabs_->setTabEnabled(0, false); // Details tab off for Go
+        rightTabs_->setTabEnabled(1, false); // Preview tab off for Go
+        rightTabs_->setTabEnabled(2, true);  // Function graph tab on for Go
+        rightTabs_->setCurrentIndex(2);
+        if (parseButton_) parseButton_->setEnabled(false);
+        if (cppParseButton_) cppParseButton_->setEnabled(false);
+        if (pythonParseButton_) pythonParseButton_->setEnabled(false);
+        if (goParseButton_) goParseButton_->setEnabled(true);
+        if (graphButton_) graphButton_->setEnabled(false);
     } else {
         currentHighlighter_ = new XmlHighlighter(xmlEditor_->document());
         rightTabs_->setTabEnabled(0, true);
@@ -484,6 +545,8 @@ void MainWindow::applyHighlighterForCurrentFile() {
         rightTabs_->setCurrentIndex(0);
         if (parseButton_) parseButton_->setEnabled(true);
         if (cppParseButton_) cppParseButton_->setEnabled(false);
+        if (pythonParseButton_) pythonParseButton_->setEnabled(false);
+        if (goParseButton_) goParseButton_->setEnabled(false);
         if (graphButton_) graphButton_->setEnabled(false);
     }
 }
@@ -1129,14 +1192,59 @@ void MainWindow::parseCpp() {
     }
 }
 
-void MainWindow::generateFunctionGraph() {
-    if (cppParser_.getFunctions().empty()) {
-        QMessageBox::warning(this, "Warning", "请先解析C++文件");
+void MainWindow::parsePython() {
+    if (currentFilePath_.empty()) {
+        QMessageBox::warning(this, "Warning", "请先打开一个Python文件");
         return;
     }
     
-    // 设置解析数据到图形视图
-    functionGraphView_->setParserData(cppParser_);
+    QString content = xmlEditor_->toPlainText();
+    std::string pythonContent = content.toStdString();
+    
+    if (pythonParser_.parseFile(pythonContent)) {
+        statusBar()->showMessage("Python 文件解析成功");
+        graphButton_->setEnabled(true);
+        
+        // 显示解析统计信息
+        const auto& functions = pythonParser_.getFunctions();
+        const auto& classes = pythonParser_.getClasses();
+        QString info = QString("解析完成：发现 %1 个函数，%2 个类")
+                      .arg(functions.size())
+                      .arg(classes.size());
+        QMessageBox::information(this, "解析结果", info);
+    } else {
+        QMessageBox::critical(this, "Error", "Python 文件解析失败");
+        graphButton_->setEnabled(false);
+    }
+}
+
+void MainWindow::generateFunctionGraph() {
+    bool hasFunctions = false;
+    
+    if (isCppMode_ && !cppParser_.getFunctions().empty()) {
+        // 设置C++解析数据到图形视图
+        functionGraphView_->setParserData(cppParser_);
+        hasFunctions = true;
+    } else if (isPythonMode_ && !pythonParser_.getFunctions().empty()) {
+        // 需要创建一个转换函数将Python数据转换为C++数据格式
+        // 或者修改FunctionGraphView以支持多种解析器类型
+        // 为了简化，我们暂时使用适配器模式
+        CppParser adaptedParser;
+        adaptPythonToCppParser(adaptedParser);
+        functionGraphView_->setParserData(adaptedParser);
+        hasFunctions = true;
+    } else if (isGoMode_ && !goParser_.getFunctions().empty()) {
+        // 将Go解析数据转换为C++数据格式
+        CppParser adaptedParser;
+        adaptGoToCppParser(adaptedParser);
+        functionGraphView_->setParserData(adaptedParser);
+        hasFunctions = true;
+    }
+    
+    if (!hasFunctions) {
+        QMessageBox::warning(this, "Warning", "请先解析代码文件");
+        return;
+    }
     
     // 生成函数关系图
     functionGraphView_->generateGraph();
@@ -1145,4 +1253,186 @@ void MainWindow::generateFunctionGraph() {
     rightTabs_->setCurrentIndex(2);
     
     statusBar()->showMessage("函数关系图生成完成");
+}
+
+void MainWindow::parseGo() {
+    if (currentFilePath_.empty()) {
+        QMessageBox::warning(this, "Warning", "请先打开一个Go文件");
+        return;
+    }
+    
+    QString content = xmlEditor_->toPlainText();
+    std::string goContent = content.toStdString();
+    
+    if (goParser_.parseFile(goContent)) {
+        statusBar()->showMessage("Go 文件解析成功");
+        graphButton_->setEnabled(true);
+        
+        // 显示解析统计信息
+        const auto& functions = goParser_.getFunctions();
+        const auto& structs = goParser_.getStructs();
+        const auto& interfaces = goParser_.getInterfaces();
+        QString info = QString("解析完成：发现 %1 个函数，%2 个结构体，%3 个接口")
+                      .arg(functions.size())
+                      .arg(structs.size())
+                      .arg(interfaces.size());
+        QMessageBox::information(this, "解析结果", info);
+    } else {
+        QMessageBox::critical(this, "Error", "Go 文件解析失败");
+        graphButton_->setEnabled(false);
+    }
+}
+
+void MainWindow::adaptPythonToCppParser(CppParser& cppParser) {
+    // 清空目标解析器
+    cppParser.clear();
+    
+    // 将Python函数转换为C++函数格式
+    const auto& pythonFunctions = pythonParser_.getFunctions();
+    const auto& pythonClasses = pythonParser_.getClasses();
+    const auto& pythonCalls = pythonParser_.getFunctionCalls();
+    
+    // 这是一个简化的适配器实现
+    // 在实际应用中，您可能需要修改FunctionGraphView以支持泛型解析器接口
+    
+    // 由于CppParser的内部数据是私有的，我们需要通过解析来填充数据
+    // 这里我们构造一个临时的C++代码字符串来模拟转换
+    std::string adaptedCppCode;
+    
+    // 转换类定义
+    for (const auto& pythonClass : pythonClasses) {
+        adaptedCppCode += "class " + pythonClass.name;
+        if (!pythonClass.baseClasses.empty()) {
+            adaptedCppCode += " : public " + pythonClass.baseClasses[0];
+        }
+        adaptedCppCode += " {\npublic:\n";
+        
+        // 转换类的方法
+        for (const auto& method : pythonClass.methods) {
+            adaptedCppCode += "    void " + method.name + "(";
+            for (size_t i = 0; i < method.parameters.size(); ++i) {
+                if (i > 0) adaptedCppCode += ", ";
+                adaptedCppCode += "int " + method.parameters[i].name;
+            }
+            adaptedCppCode += ") {\n";
+            
+            // 添加函数调用
+            auto it = pythonCalls.find(method.name);
+            if (it != pythonCalls.end()) {
+                for (const std::string& calledFunc : it->second) {
+                    adaptedCppCode += "        " + calledFunc + "();\n";
+                }
+            }
+            
+            adaptedCppCode += "    }\n";
+        }
+        adaptedCppCode += "};\n\n";
+    }
+    
+    // 转换独立函数
+    for (const auto& pythonFunc : pythonFunctions) {
+        if (pythonFunc.className.empty()) { // 只处理独立函数
+            adaptedCppCode += "void " + pythonFunc.name + "(";
+            for (size_t i = 0; i < pythonFunc.parameters.size(); ++i) {
+                if (i > 0) adaptedCppCode += ", ";
+                adaptedCppCode += "int " + pythonFunc.parameters[i].name;
+            }
+            adaptedCppCode += ") {\n";
+            
+            // 添加函数调用
+            auto it = pythonCalls.find(pythonFunc.name);
+            if (it != pythonCalls.end()) {
+                for (const std::string& calledFunc : it->second) {
+                    adaptedCppCode += "    " + calledFunc + "();\n";
+                }
+            }
+            
+            adaptedCppCode += "}\n\n";
+        }
+    }
+    
+    // 解析适配后的代码
+    cppParser.parseFile(adaptedCppCode);
+}
+
+void MainWindow::adaptGoToCppParser(CppParser& cppParser) {
+    // 清空目标解析器
+    cppParser.clear();
+    
+    // 将Go函数转换为C++函数格式
+    const auto& goFunctions = goParser_.getFunctions();
+    const auto& goStructs = goParser_.getStructs();
+    const auto& goCalls = goParser_.getFunctionCalls();
+    
+    // 构造一个临时的C++代码字符串来模拟转换
+    std::string adaptedCppCode;
+    
+    // 转换结构体定义
+    for (const auto& goStruct : goStructs) {
+        adaptedCppCode += "class " + goStruct.name + " {\npublic:\n";
+        
+        // 转换结构体字段
+        for (const auto& field : goStruct.fields) {
+            adaptedCppCode += "    int " + field + ";\n";
+        }
+        
+        adaptedCppCode += "};\n\n";
+    }
+    
+    // 转换函数定义
+    for (const auto& goFunc : goFunctions) {
+        // 处理返回类型（Go可以有多个返回值）
+        std::string returnType = "void";
+        if (!goFunc.returnTypes.empty()) {
+            returnType = goFunc.returnTypes[0]; // 简化处理，只取第一个返回类型
+            // 将Go类型映射到C++类型
+            if (returnType == "string") returnType = "std::string";
+            else if (returnType == "int") returnType = "int";
+            else if (returnType == "bool") returnType = "bool";
+            else if (returnType == "float64") returnType = "double";
+            else returnType = "int"; // 默认类型
+        }
+        
+        // 处理方法（有接收者）
+        if (goFunc.isMethod) {
+            adaptedCppCode += "class " + goFunc.receiverType + " {\npublic:\n";
+            adaptedCppCode += "    " + returnType + " " + goFunc.name + "(";
+        } else {
+            adaptedCppCode += returnType + " " + goFunc.name + "(";
+        }
+        
+        // 转换参数
+        for (size_t i = 0; i < goFunc.parameters.size(); ++i) {
+            if (i > 0) adaptedCppCode += ", ";
+            
+            std::string paramType = goFunc.parameters[i].type;
+            // 简单的类型映射
+            if (paramType == "string") paramType = "std::string";
+            else if (paramType == "int") paramType = "int";
+            else if (paramType == "bool") paramType = "bool";
+            else if (paramType == "float64") paramType = "double";
+            else paramType = "int"; // 默认类型
+            
+            adaptedCppCode += paramType + " " + goFunc.parameters[i].name;
+        }
+        
+        adaptedCppCode += ") {\n";
+        
+        // 添加函数调用
+        auto it = goCalls.find(goFunc.name);
+        if (it != goCalls.end()) {
+            for (const std::string& calledFunc : it->second) {
+                adaptedCppCode += "    " + calledFunc + "();\n";
+            }
+        }
+        
+        if (goFunc.isMethod) {
+            adaptedCppCode += "    }\n};\n\n";
+        } else {
+            adaptedCppCode += "}\n\n";
+        }
+    }
+    
+    // 解析适配后的代码
+    cppParser.parseFile(adaptedCppCode);
 } 
