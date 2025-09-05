@@ -85,6 +85,8 @@ private:
 	bool isCurrentFileGo() const;
 	void adaptPythonToCppParser(CppParser& cppParser);
 	void adaptGoToCppParser(CppParser& cppParser);
+	void loadFileFromPath(const QString& filePath);
+	void toggleTheme();
 	
 	// UI Components
 	QSplitter* mainSplitter_;
@@ -106,6 +108,7 @@ private:
 	QTabWidget* rightTabs_;
 	QTextBrowser* markdownPreview_;
 	FunctionGraphView* functionGraphView_;
+	QProgressBar* progressBar_;
 	
 	// Data
 	XmlParser parser_;
@@ -125,6 +128,7 @@ private:
 	bool isPythonMode_;
 	bool isGoMode_;
 	QSyntaxHighlighter* currentHighlighter_;
+	bool isDarkTheme_;
 	
 	// Actions
 	QAction* openAction_;
@@ -138,6 +142,11 @@ private:
 	QAction* searchAction_;
 	QAction* foldAllAction_;
 	QAction* unfoldAllAction_;
+	QAction* parseCppAction_;
+	QAction* parsePythonAction_;
+	QAction* parseGoAction_;
+	QAction* generateGraphAction_;
+	QAction* toggleThemeAction_;
 	QAction* exitAction_;
 	QAction* aboutAction_;
 };
