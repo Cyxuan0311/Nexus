@@ -2,6 +2,8 @@
 #include <QDir>
 #include <QStandardPaths>
 #include <QIcon>
+#include <QTimer>
+#include <QMessageBox>
 #include "main_window.h"
 
 int main(int argc, char *argv[]) {
@@ -24,8 +26,13 @@ int main(int argc, char *argv[]) {
     if (argc > 1) {
         QString filePath = QString::fromLocal8Bit(argv[1]);
         if (QFile::exists(filePath)) {
-            // TODO: Load the XML file directly
-            // window.loadFile(filePath);
+            // 延迟加载文件，确保窗口完全初始化
+            QTimer::singleShot(100, [&window, filePath]() {
+                window.loadFileFromPath(filePath);
+            });
+        } else {
+            QMessageBox::warning(nullptr, "File Not Found", 
+                QString("The specified file does not exist: %1").arg(filePath));
         }
     }
     
