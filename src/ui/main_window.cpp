@@ -22,6 +22,7 @@
 #include <QTextCursor>
 #include <QMessageBox>
 #include <QIcon>
+#include <QProgressBar>
 #include <fstream>
 #include <stdexcept>
 #include "markdown_highlighter.h"
@@ -47,6 +48,7 @@ MainWindow::MainWindow(QWidget *parent)
     isPythonMode_ = false;
     isGoMode_ = false;
     currentHighlighter_ = nullptr;
+    isDarkTheme_ = true; // 默认使用深色主题
     
     setWindowTitle("Nexus - 多功能代码编辑器与可视化工具");
     
@@ -242,6 +244,34 @@ void MainWindow::setupMenuBar() {
     unfoldAllAction_->setShortcut(QKeySequence("Ctrl+Shift+]"));
     connect(unfoldAllAction_, &QAction::triggered, this, &MainWindow::unfoldAllXml);
     
+    editMenu->addSeparator();
+    
+    // 解析快捷键
+    parseCppAction_ = editMenu->addAction("Parse &C++");
+    parseCppAction_->setShortcut(QKeySequence("Ctrl+Shift+C"));
+    connect(parseCppAction_, &QAction::triggered, this, &MainWindow::parseCpp);
+    
+    parsePythonAction_ = editMenu->addAction("Parse &Python");
+    parsePythonAction_->setShortcut(QKeySequence("Ctrl+Shift+P"));
+    connect(parsePythonAction_, &QAction::triggered, this, &MainWindow::parsePython);
+    
+    parseGoAction_ = editMenu->addAction("Parse &Go");
+    parseGoAction_->setShortcut(QKeySequence("Ctrl+Shift+G"));
+    connect(parseGoAction_, &QAction::triggered, this, &MainWindow::parseGo);
+    
+    editMenu->addSeparator();
+    
+    // 生成函数图快捷键
+    generateGraphAction_ = editMenu->addAction("Generate &Function Graph");
+    generateGraphAction_->setShortcut(QKeySequence("Ctrl+Shift+F"));
+    connect(generateGraphAction_, &QAction::triggered, this, &MainWindow::generateFunctionGraph);
+    
+    // View menu
+    QMenu* viewMenu = menuBar->addMenu("&View");
+    toggleThemeAction_ = viewMenu->addAction("Toggle &Theme");
+    toggleThemeAction_->setShortcut(QKeySequence("Ctrl+T"));
+    connect(toggleThemeAction_, &QAction::triggered, this, &MainWindow::toggleTheme);
+    
     // Help menu
     QMenu* helpMenu = menuBar->addMenu("&Help");
     aboutAction_ = helpMenu->addAction("&About");
@@ -276,6 +306,12 @@ void MainWindow::setupToolBar() {
 
 void MainWindow::setupStatusBar() {
     statusBar()->showMessage("Ready");
+    
+    // 添加进度条
+    progressBar_ = new QProgressBar();
+    progressBar_->setVisible(false);
+    progressBar_->setMaximumWidth(200);
+    statusBar()->addPermanentWidget(progressBar_);
 }
 
 void MainWindow::setupStyle() {
@@ -999,8 +1035,24 @@ void MainWindow::performReplace() {
         QString content = xmlEditor_->toPlainText();
         
         if (searchDialog_->isRegex()) {
-            // TODO: Implement regex replace
-            QMessageBox::information(this, "Info", "Regex replace not implemented yet");
+            // 实现正则表达式替换
+            QRegExp regex(searchText);
+            if (regex.isValid()) {
+                Qt::CaseSensitivity caseSensitivity = searchDialog_->isCaseSensitive() ? 
+                    Qt::CaseSensitive : Qt::CaseInsensitive;
+                regex.setCaseSensitivity(caseSensitivity);
+                
+                int count = 0;
+                content.replace(regex, replaceText, &count);
+                if (count > 0) {
+                    xmlEditor_->setPlainText(content);
+                    statusBar()->showMessage(QString("Replaced %1 occurrences using regex").arg(count));
+                } else {
+                    statusBar()->showMessage("No matches found for regex pattern");
+                }
+            } else {
+                QMessageBox::warning(this, "Invalid Regex", "The regular expression pattern is invalid.");
+            }
         } else {
             Qt::CaseSensitivity caseSensitivity = searchDialog_->isCaseSensitive() ? 
                 Qt::CaseSensitive : Qt::CaseInsensitive;
@@ -1172,10 +1224,25 @@ void MainWindow::parseCpp() {
         return;
     }
     
+    // 显示进度条
+    progressBar_->setVisible(true);
+    progressBar_->setRange(0, 0); // 不确定进度
+    statusBar()->showMessage("正在解析C++文件...");
+    QApplication::processEvents(); // 更新UI
+    
     QString content = xmlEditor_->toPlainText();
     std::string cppContent = content.toStdString();
     
+    // 检查文件大小，大文件给出提示
+    if (cppContent.length() > 100000) { // 100KB
+        progressBar_->setRange(0, 100);
+        progressBar_->setValue(50);
+        statusBar()->showMessage("正在解析大型C++文件，请稍候...");
+        QApplication::processEvents();
+    }
+    
     if (cppParser_.parseFile(cppContent)) {
+        progressBar_->setValue(100);
         statusBar()->showMessage("C++ 文件解析成功");
         graphButton_->setEnabled(true);
         
@@ -1190,6 +1257,9 @@ void MainWindow::parseCpp() {
         QMessageBox::critical(this, "Error", "C++ 文件解析失败");
         graphButton_->setEnabled(false);
     }
+    
+    // 隐藏进度条
+    progressBar_->setVisible(false);
 }
 
 void MainWindow::parsePython() {
@@ -1435,4 +1505,101 @@ void MainWindow::adaptGoToCppParser(CppParser& cppParser) {
     
     // 解析适配后的代码
     cppParser.parseFile(adaptedCppCode);
+}
+
+void MainWindow::loadFileFromPath(const QString& filePath) {
+    // 设置当前文件路径
+    currentFilePath_ = filePath.toStdString();
+    
+    // 更新文件标签
+    QFileInfo fileInfo(filePath);
+    fileLabel_->setText(fileInfo.fileName());
+    
+    // 读取文件内容
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QMessageBox::critical(this, "Error", 
+            QString("Cannot open file: %1").arg(filePath));
+        return;
+    }
+    
+    QTextStream in(&file);
+    QString content = in.readAll();
+    file.close();
+    
+    // 设置编辑器内容
+    xmlEditor_->setPlainText(content);
+    
+    // 根据文件扩展名设置模式
+    QString extension = fileInfo.suffix().toLower();
+    isMarkdownMode_ = (extension == "md" || extension == "markdown");
+    isCppMode_ = (extension == "cpp" || extension == "cxx" || extension == "cc" || extension == "c");
+    isPythonMode_ = (extension == "py");
+    isGoMode_ = (extension == "go");
+    
+    // 应用语法高亮
+    applyHighlighterForCurrentFile();
+    
+    // 启用相应的解析按钮
+    if (isCppMode_) {
+        cppParseButton_->setEnabled(true);
+    } else if (isPythonMode_) {
+        pythonParseButton_->setEnabled(true);
+    } else if (isGoMode_) {
+        goParseButton_->setEnabled(true);
+    } else if (!isMarkdownMode_) {
+        parseButton_->setEnabled(true);
+    }
+    
+    // 如果是Markdown文件，渲染预览
+    if (isMarkdownMode_) {
+        renderMarkdownPreview();
+    }
+    
+    statusBar()->showMessage(QString("Loaded: %1").arg(filePath));
+}
+
+void MainWindow::toggleTheme() {
+    isDarkTheme_ = !isDarkTheme_;
+    
+    if (isDarkTheme_) {
+        // 应用深色主题
+        QPalette darkPalette;
+        darkPalette.setColor(QPalette::Window, QColor(53, 53, 53));
+        darkPalette.setColor(QPalette::WindowText, QColor(255, 255, 255));
+        darkPalette.setColor(QPalette::Base, QColor(25, 25, 25));
+        darkPalette.setColor(QPalette::AlternateBase, QColor(53, 53, 53));
+        darkPalette.setColor(QPalette::ToolTipBase, QColor(255, 255, 255));
+        darkPalette.setColor(QPalette::ToolTipText, QColor(255, 255, 255));
+        darkPalette.setColor(QPalette::Text, QColor(255, 255, 255));
+        darkPalette.setColor(QPalette::Button, QColor(53, 53, 53));
+        darkPalette.setColor(QPalette::ButtonText, QColor(255, 255, 255));
+        darkPalette.setColor(QPalette::BrightText, QColor(255, 0, 0));
+        darkPalette.setColor(QPalette::Link, QColor(42, 130, 218));
+        darkPalette.setColor(QPalette::Highlight, QColor(42, 130, 218));
+        darkPalette.setColor(QPalette::HighlightedText, QColor(255, 255, 255));
+        QApplication::setPalette(darkPalette);
+        statusBar()->showMessage("已切换到深色主题");
+    } else {
+        // 应用浅色主题
+        QPalette lightPalette;
+        lightPalette.setColor(QPalette::Window, QColor(240, 240, 240));
+        lightPalette.setColor(QPalette::WindowText, QColor(0, 0, 0));
+        lightPalette.setColor(QPalette::Base, QColor(255, 255, 255));
+        lightPalette.setColor(QPalette::AlternateBase, QColor(240, 240, 240));
+        lightPalette.setColor(QPalette::ToolTipBase, QColor(255, 255, 255));
+        lightPalette.setColor(QPalette::ToolTipText, QColor(0, 0, 0));
+        lightPalette.setColor(QPalette::Text, QColor(0, 0, 0));
+        lightPalette.setColor(QPalette::Button, QColor(240, 240, 240));
+        lightPalette.setColor(QPalette::ButtonText, QColor(0, 0, 0));
+        lightPalette.setColor(QPalette::BrightText, QColor(255, 0, 0));
+        lightPalette.setColor(QPalette::Link, QColor(0, 102, 204));
+        lightPalette.setColor(QPalette::Highlight, QColor(0, 102, 204));
+        lightPalette.setColor(QPalette::HighlightedText, QColor(255, 255, 255));
+        QApplication::setPalette(lightPalette);
+        statusBar()->showMessage("已切换到浅色主题");
+    }
+    
+    // 重新应用语法高亮以适配新主题
+    applyHighlighterForCurrentFile();
 } 
