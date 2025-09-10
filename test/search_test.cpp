@@ -5,22 +5,18 @@
 #include <QPlainTextEdit>
 #include "search_dialog.h"
 
+// Forward declaration
+void searchRecursive(QTreeWidgetItem* item, const QString& searchText, QList<QTreeWidgetItem*>& results);
+
 class SearchTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        // Create QApplication if it doesn't exist
-        if (!QApplication::instance()) {
-            static int argc = 1;
-            static char* argv[] = {(char*)"test"};
-            app_ = new QApplication(argc, argv);
-        }
+        // QApplication is already created in main()
     }
     
     void TearDown() override {
         // Clean up
     }
-    
-    QApplication* app_ = nullptr;
 };
 
 TEST_F(SearchTest, SearchDialogCreation) {

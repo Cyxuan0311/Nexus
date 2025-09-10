@@ -2,24 +2,18 @@
 #include <QApplication>
 #include <QTextDocument>
 #include <QTextBlock>
+#include <QtGlobal>
 #include "code_folding.h"
 
 class CodeFoldingTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        // Create QApplication if it doesn't exist
-        if (!QApplication::instance()) {
-            static int argc = 1;
-            static char* argv[] = {(char*)"test"};
-            app_ = new QApplication(argc, argv);
-        }
+        // QApplication is already created in main()
     }
     
     void TearDown() override {
         // Clean up
     }
-    
-    QApplication* app_ = nullptr;
 };
 
 TEST_F(CodeFoldingTest, FoldingTextEditCreation) {
@@ -30,6 +24,7 @@ TEST_F(CodeFoldingTest, FoldingTextEditCreation) {
 TEST_F(CodeFoldingTest, XmlTagDetection) {
     FoldingTextEdit editor;
     CodeFoldingArea* foldingArea = editor.getFoldingArea();
+    Q_UNUSED(foldingArea);
     
     // Test XML tag detection
     QString xmlContent = R"(
