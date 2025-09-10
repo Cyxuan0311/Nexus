@@ -25,6 +25,7 @@
 #include <QRegExp>
 #include <QTabWidget>
 #include <QTextBrowser>
+#include <QProgressBar>
 #include "xml_parser.h"
 #include "xml_serializer.h"
 #include "xml_highlighter.h"
@@ -44,9 +45,13 @@ class MainWindow : public QMainWindow {
 public:
 	MainWindow(QWidget *parent = nullptr);
 	~MainWindow();
+	
+	// Public methods
+	void loadFileFromPath(const QString& filePath);
 
 private slots:
 	void openFile();
+	void openProject();
 	void parseXml();
 	void parseCpp();
 	void parsePython();
@@ -75,8 +80,12 @@ private:
 	void setupStatusBar();
 	void setupStyle();
 	void populateTreeWidget(const std::shared_ptr<XmlNode>& node, QTreeWidgetItem* parentItem = nullptr);
+	void populateProjectTree(const QString& projectPath);
+	void populateProjectTreeRecursive(const QDir& dir, QTreeWidgetItem* parentItem);
 	void displayNodeDetails(const std::shared_ptr<XmlNode>& node);
 	void clearDisplay();
+	void showAnalysisPanel();
+	void updateLineCount();
 	void renderMarkdownPreview();
 	void applyHighlighterForCurrentFile();
 	bool isCurrentFileMarkdown() const;
@@ -85,8 +94,13 @@ private:
 	bool isCurrentFileGo() const;
 	void adaptPythonToCppParser(CppParser& cppParser);
 	void adaptGoToCppParser(CppParser& cppParser);
-	void loadFileFromPath(const QString& filePath);
 	void toggleTheme();
+	
+	// Search methods
+	void searchInTreeWidget(const QString& searchText);
+	void searchInTreeWidgetRecursive(QTreeWidgetItem* item, const QString& searchText);
+	void searchInEditor(const QString& searchText);
+	void highlightNextResult();
 	
 	// UI Components
 	QSplitter* mainSplitter_;
@@ -97,11 +111,8 @@ private:
 	QTextEdit* detailsTextEdit_;
 	FoldingTextEdit* xmlEditor_;
 	QPushButton* parseButton_;
-	QPushButton* cppParseButton_;
-	QPushButton* pythonParseButton_;
-	QPushButton* goParseButton_;
-	QPushButton* graphButton_;
 	QPushButton* openButton_;
+	QPushButton* openProjectButton_;
 	QPushButton* editButton_;
 	QPushButton* saveButton_;
 	QLabel* fileLabel_;
@@ -109,6 +120,8 @@ private:
 	QTextBrowser* markdownPreview_;
 	FunctionGraphView* functionGraphView_;
 	QProgressBar* progressBar_;
+	QLabel* lineCountLabel_;
+	QLabel* charCountLabel_;
 	
 	// Data
 	XmlParser parser_;
@@ -118,6 +131,7 @@ private:
 	GoParser goParser_;
 	std::shared_ptr<XmlNode> rootNode_;
 	std::string currentFilePath_;
+	std::string currentProjectPath_;
 	bool isEditing_;
 	QString originalXmlContent_;
 	SearchDialog* searchDialog_;

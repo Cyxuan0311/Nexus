@@ -40,7 +40,7 @@ private:
     char getNextChar(std::istream& stream);
     bool isWhitespace(char c);
     std::string unescapeXml(const std::string& text);
-    std::string escapeXml(const std::string& text);
+    std::string escapeXml(const std::string& text) const;
 };
 
 #endif // XML_PARSER_H 

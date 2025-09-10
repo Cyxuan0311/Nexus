@@ -6,6 +6,7 @@
 #include <map>
 #include <memory>
 #include <QRegExp>
+#include <QStringList>
 
 struct PythonParameter {
     std::string name;

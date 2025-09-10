@@ -29,6 +29,7 @@ public:
 private slots:
     void onSearchModeChanged();
     void onReplaceModeChanged();
+    void onSearchTextChanged();
 
 private:
     void setupUi();

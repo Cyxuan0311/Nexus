@@ -5,8 +5,9 @@
 #include <vector>
 #include <map>
 #include <memory>
+#include <QMetaType>
 
-class XmlNode {
+class XmlNode : public std::enable_shared_from_this<XmlNode> {
 public:
     enum class NodeType {
         Element,
@@ -25,7 +26,7 @@ public:
     NodeType getType() const { return type_; }
     const std::map<std::string, std::string>& getAttributes() const { return attributes_; }
     const std::vector<std::shared_ptr<XmlNode>>& getChildren() const { return children_; }
-    std::shared_ptr<XmlNode> getParent() const { return parent_; }
+    std::shared_ptr<XmlNode> getParent() const { return parent_.lock(); }
 
     // Setters
     void setName(const std::string& name) { name_ = name; }
@@ -56,5 +57,7 @@ private:
     std::vector<std::shared_ptr<XmlNode>> children_;
     std::weak_ptr<XmlNode> parent_;
 };
+
+Q_DECLARE_METATYPE(std::shared_ptr<XmlNode>)
 
 #endif // XML_NODE_H 

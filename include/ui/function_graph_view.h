@@ -8,7 +8,7 @@
 #include <QGraphicsEllipseItem>
 #include <QGraphicsTextItem>
 #include <QGraphicsLineItem>
-#include <QGraphicsArrowItem>
+#include <QGraphicsPolygonItem>
 #include <QPen>
 #include <QBrush>
 #include <QVBoxLayout>

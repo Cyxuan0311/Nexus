@@ -24,7 +24,7 @@ protected:
     void mousePressEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
 
-private slots:
+public slots:
     void updateFoldableLines();
 
 private:
@@ -51,6 +51,9 @@ public:
     void foldAll();
     void unfoldAll();
     CodeFoldingArea* getFoldingArea() const;
+    
+    // Public access to protected methods
+    QRectF blockBoundingGeometry(const QTextBlock& block) const;
 
 protected:
     void resizeEvent(QResizeEvent* event) override;

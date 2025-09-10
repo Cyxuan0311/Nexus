@@ -45,10 +45,10 @@ public:
                          OutputStyle style = OutputStyle::Pretty) const;
 
     // 反序列化
-    std::shared_ptr<XmlNode> deserializeFromXml(const std::string& content);
-    std::shared_ptr<XmlNode> deserializeFromJson(const std::string& content);
-    std::shared_ptr<XmlNode> deserializeFromYaml(const std::string& content);
-    std::shared_ptr<XmlNode> deserializeFromCsv(const std::string& content);
+    std::shared_ptr<XmlNode> deserializeFromXml(const std::string& content) const;
+    std::shared_ptr<XmlNode> deserializeFromJson(const std::string& content) const;
+    std::shared_ptr<XmlNode> deserializeFromYaml(const std::string& content) const;
+    std::shared_ptr<XmlNode> deserializeFromCsv(const std::string& content) const;
 
     // 验证功能
     bool validateXml(const std::string& xmlContent) const;
