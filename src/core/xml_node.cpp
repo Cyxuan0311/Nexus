@@ -1,5 +1,6 @@
-#include "xml_node.h"
 #include <sstream>
+#include <algorithm>
+#include "xml_node.h"
 
 XmlNode::XmlNode(const std::string& name, NodeType type)
     : name_(name), type_(type) {

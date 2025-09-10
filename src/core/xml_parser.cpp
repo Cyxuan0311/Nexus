@@ -15,8 +15,8 @@ std::shared_ptr<XmlNode> XmlParser::parseFile(const std::string& filename) {
     }
     
     clearError();
-    std::string content(std::istreambuf_iterator<char>(file),
-                        std::istreambuf_iterator<char>());
+    std::string content{std::istreambuf_iterator<char>(file),
+                        std::istreambuf_iterator<char>()};
     return parseString(content);
 }
 
@@ -301,7 +301,7 @@ std::string XmlParser::unescapeXml(const std::string& text) {
     return result;
 }
 
-std::string XmlParser::escapeXml(const std::string& text) {
+std::string XmlParser::escapeXml(const std::string& text) const {
     std::string result = text;
     
     // Replace special characters with XML entities

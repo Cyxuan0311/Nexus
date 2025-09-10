@@ -74,7 +74,7 @@ MarkdownHighlighter::MarkdownHighlighter(QTextDocument* parent)
 	highlightingRules_.append(rule);
 
 	// Horizontal rule: --- or ***
-	rule.pattern = QRegExp("^(\\s*)(---|\*\*\*)\\s*$");
+	rule.pattern = QRegExp("^(\\s*)(---|\\*\\*\\*)\\s*$");
 	rule.format = hrFormat_;
 	highlightingRules_.append(rule);
 }

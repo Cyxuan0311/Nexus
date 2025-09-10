@@ -6,6 +6,7 @@
 #include <QScrollBar>
 #include <QApplication>
 #include <QStyle>
+#include <QtGlobal>
 
 CodeFoldingArea::CodeFoldingArea(FoldingTextEdit* editor)
     : QWidget(editor), editor_(editor), foldableLines_(), foldedBlocks_() {
@@ -14,12 +15,13 @@ CodeFoldingArea::CodeFoldingArea(FoldingTextEdit* editor)
     
     // Connect to editor signals
     connect(editor_->document(), &QTextDocument::contentsChanged, this, &CodeFoldingArea::updateFoldableLines);
-    connect(editor_->verticalScrollBar(), &QScrollBar::valueChanged, this, &CodeFoldingArea::update);
+    connect(editor_->verticalScrollBar(), &QScrollBar::valueChanged, this, QOverload<>::of(&CodeFoldingArea::update));
     
     updateFoldableLines();
 }
 
 void CodeFoldingArea::paintEvent(QPaintEvent* event) {
+    Q_UNUSED(event)
     QPainter painter(this);
     painter.fillRect(rect(), QColor(30, 30, 30));
     
@@ -34,7 +36,8 @@ void CodeFoldingArea::paintEvent(QPaintEvent* event) {
     
     while (block.isValid()) {
         QRectF blockRect = editor_->blockBoundingGeometry(block);
-        QRectF blockRectTranslated = editor_->viewport()->mapToParent(blockRect.toRect());
+        QPoint blockTopLeft = editor_->viewport()->mapToParent(blockRect.topLeft().toPoint());
+        QRectF blockRectTranslated(blockTopLeft, blockRect.size());
         
         // Check if block is visible
         if (blockRectTranslated.bottom() >= 0 && blockRectTranslated.top() <= height()) {
@@ -116,7 +119,8 @@ int CodeFoldingArea::getBlockNumberAtY(int y) const {
     
     while (block.isValid()) {
         QRectF blockRect = editor_->blockBoundingGeometry(block);
-        QRectF blockRectTranslated = editor_->viewport()->mapToParent(blockRect.toRect());
+        QPoint blockTopLeft = editor_->viewport()->mapToParent(blockRect.topLeft().toPoint());
+        QRectF blockRectTranslated(blockTopLeft, blockRect.size());
         
         if (y >= blockRectTranslated.top() && y <= blockRectTranslated.bottom()) {
             return blockNumber;
@@ -255,7 +259,7 @@ QString CodeFoldingArea::extractTagName(const QString& text) const {
 QTextBlock CodeFoldingArea::findClosingTag(const QTextBlock& startBlock, const QString& tagName) const {
     if (!editor_) return QTextBlock();
     
-    QTextDocument* document = editor_->document();
+    Q_UNUSED(tagName)
     QTextBlock block = startBlock.next();
     int depth = 1;
     
@@ -312,7 +316,7 @@ FoldingTextEdit::FoldingTextEdit(QWidget* parent)
     
     // Connect scroll signals
     connect(verticalScrollBar(), &QScrollBar::valueChanged, 
-            foldingArea_, &CodeFoldingArea::update);
+            foldingArea_, QOverload<>::of(&CodeFoldingArea::update));
     
     // Update folding area when content changes
     connect(document(), &QTextDocument::contentsChanged, 
@@ -342,4 +346,8 @@ void FoldingTextEdit::unfoldAll() {
 
 CodeFoldingArea* FoldingTextEdit::getFoldingArea() const {
     return foldingArea_;
+}
+
+QRectF FoldingTextEdit::blockBoundingGeometry(const QTextBlock& block) const {
+    return QPlainTextEdit::blockBoundingGeometry(block);
 } 

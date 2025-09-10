@@ -5,22 +5,22 @@
 #include <QString>
 
 CppParser::CppParser() {
-    // 函数定义模式：修饰符 返回类型 函数名(参数)
+    // Function definition pattern: modifier return_type function_name(parameters)
     functionPattern_ = QRegExp(
-        "(?:^|\\s+)(?:virtual\\s+|static\\s+|inline\\s+)?"  // 可选修饰符
-        "([\\w:]+(?:\\s*[*&])?)"                            // 返回类型
-        "\\s+([\\w~]+)"                                     // 函数名
-        "\\s*\\(([^)]*)\\)"                                 // 参数列表
-        "\\s*(?:const)?\\s*[{;]"                           // 可选const和函数体开始或声明结束
+        "(?:^|\\s+)(?:virtual\\s+|static\\s+|inline\\s+)?"  // Optional modifiers
+        "([\\w:]+(?:\\s*[*&])?)"                            // Return type
+        "\\s+([\\w~]+)"                                     // Function name
+        "\\s*\\(([^)]*)\\)"                                 // Parameter list
+        "\\s*(?:const)?\\s*[{;]"                           // Optional const and function body start or declaration end
     );
     
-    // 类定义模式
+    // Class definition pattern
     classPattern_ = QRegExp("class\\s+([\\w]+)\\s*(?::\\s*(.*))?\\s*\\{");
     
-    // 函数调用模式
+    // Function call pattern
     functionCallPattern_ = QRegExp("([\\w]+)\\s*\\(");
     
-    // 参数模式
+    // Parameter pattern
     parameterPattern_ = QRegExp("((?:const\\s+)?[\\w:]+(?:\\s*[*&])?)\\s+([\\w]+)(?:\\s*=\\s*([^,)]*))?");
 }
 
@@ -36,16 +36,16 @@ bool CppParser::parseFile(const std::string& content) {
     }
     
     try {
-        // 移除注释
+        // Remove comments
         std::string cleanContent = removeComments(content);
         
-        // 解析类
+        // Parse classes
         parseClasses(cleanContent);
         
-        // 解析函数
+        // Parse functions
         parseFunctions(cleanContent);
         
-        // 解析函数调用关系
+        // Parse functions调用关系
         parseFunctionCalls(cleanContent);
         
         return true;
@@ -61,13 +61,13 @@ void CppParser::parseFunctions(const std::string& content) {
         const std::string& line = lines[i];
         QString qline = QString::fromStdString(line);
         
-        // 跳过注释、预处理器指令和空行
+        // Skip comments, preprocessor directives and empty lines
         if (line.empty() || line[0] == '#' || 
             line.find("//") == 0 || line.find("/*") != std::string::npos) {
             continue;
         }
         
-        // 查找函数定义
+        // Find function definitions
         if (functionPattern_.indexIn(qline) != -1) {
             CppFunction func = parseFunctionDeclaration(line, i + 1);
             if (!func.name.empty()) {
@@ -89,13 +89,13 @@ void CppParser::parseClasses(const std::string& content) {
             cls.name = classPattern_.cap(1).toStdString();
             cls.lineNumber = i + 1;
             
-            // 解析基类
+            // Parse base classes
             if (!classPattern_.cap(2).isEmpty()) {
                 QString baseClasses = classPattern_.cap(2);
                 QStringList bases = baseClasses.split(",");
                 for (const QString& base : bases) {
                     QString trimmed = base.trimmed();
-                    // 移除访问修饰符
+                    // Remove access modifiers
                     trimmed.replace(QRegExp("^(public|private|protected)\\s+"), "");
                     cls.baseClasses.push_back(trimmed.toStdString());
                 }
@@ -114,14 +114,14 @@ void CppParser::parseFunctionCalls(const std::string& content) {
         const std::string& line = lines[i];
         QString qline = QString::fromStdString(line);
         
-        // 检查是否是函数定义开始
+        // Check if this is the start of a function definition
         if (functionPattern_.indexIn(qline) != -1) {
             currentFunction = functionPattern_.cap(2).toStdString();
         }
         
-        // 在函数体内查找函数调用
+        // Find function calls within function body
         if (!currentFunction.empty() && line.find("{") != std::string::npos) {
-            // 开始解析函数体
+            // Start parsing function body
             size_t braceCount = std::count(line.begin(), line.end(), '{') - 
                                 std::count(line.begin(), line.end(), '}');
             
@@ -132,13 +132,13 @@ void CppParser::parseFunctionCalls(const std::string& content) {
                 braceCount += std::count(bodyLine.begin(), bodyLine.end(), '{') - 
                               std::count(bodyLine.begin(), bodyLine.end(), '}');
                 
-                // 查找函数调用
+                // Find function calls
                 int pos = 0;
                 while ((pos = functionCallPattern_.indexIn(qBodyLine, pos)) != -1) {
                     QString calledFunc = functionCallPattern_.cap(1);
                     std::string calledFuncStr = calledFunc.toStdString();
                     
-                    // 避免关键字和常见的非函数调用
+                    // Avoid keywords and common non-function calls
                     if (calledFuncStr != "if" && calledFuncStr != "while" && 
                         calledFuncStr != "for" && calledFuncStr != "switch" &&
                         calledFuncStr != "return" && calledFuncStr != "sizeof") {

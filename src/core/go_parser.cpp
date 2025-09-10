@@ -302,9 +302,9 @@ std::vector<GoParameter> GoParser::parseParameters(const std::string& paramStr) 
             if (parts.size() >= 2) {
                 p.name = parts[0].toStdString();
                 p.type = parts[1].toStdString();
-                if (p.type.startsWith("...")) {
+                if (p.type.substr(0, 3) == "...") {
                     p.isVariadic = true;
-                    p.type = p.type.mid(3); // Remove "..."
+                    p.type = p.type.substr(3); // Remove "..."
                 }
             } else if (parts.size() == 1) {
                 // Just a type, no name

@@ -28,25 +28,25 @@ FunctionGraphView::~FunctionGraphView() {
 void FunctionGraphView::setupUI() {
     mainLayout_ = new QVBoxLayout(this);
     
-    // 控制按钮布局
+    // Control button layout
     controlsLayout_ = new QHBoxLayout();
     
-    zoomInButton_ = new QPushButton("放大");
-    zoomOutButton_ = new QPushButton("缩小");
-    resetZoomButton_ = new QPushButton("重置视图");
-    autoLayoutButton_ = new QPushButton("自动布局");
+    zoomInButton_ = new QPushButton("Zoom In");
+    zoomOutButton_ = new QPushButton("Zoom Out");
+    resetZoomButton_ = new QPushButton("Reset View");
+    autoLayoutButton_ = new QPushButton("Auto Layout");
     
     layoutCombo_ = new QComboBox();
-    layoutCombo_->addItem("层次布局");
-    layoutCombo_->addItem("圆形布局");
-    layoutCombo_->addItem("力导向布局");
+    layoutCombo_->addItem("Hierarchical Layout");
+    layoutCombo_->addItem("Circular Layout");
+    layoutCombo_->addItem("Force-Directed Layout");
     
-    infoLabel_ = new QLabel("函数关系图");
+    infoLabel_ = new QLabel("Function Graph");
     infoLabel_->setStyleSheet("color: #4EC9B0; font-weight: bold; font-size: 14px;");
     
     controlsLayout_->addWidget(infoLabel_);
     controlsLayout_->addStretch();
-    controlsLayout_->addWidget(new QLabel("布局:"));
+    controlsLayout_->addWidget(new QLabel("Layout:"));
     controlsLayout_->addWidget(layoutCombo_);
     controlsLayout_->addWidget(autoLayoutButton_);
     controlsLayout_->addWidget(zoomInButton_);
@@ -55,21 +55,21 @@ void FunctionGraphView::setupUI() {
     
     mainLayout_->addLayout(controlsLayout_);
     
-    // 图形视图
+    // Graphics view
     graphView_ = new QGraphicsView();
     graphView_->setMinimumHeight(400);
     mainLayout_->addWidget(graphView_);
     
-    // 详细信息区域
+    // Details area
     detailsArea_ = new QScrollArea();
     detailsArea_->setMaximumHeight(150);
-    detailsLabel_ = new QLabel("点击函数节点查看详细信息");
+    detailsLabel_ = new QLabel("Click function node to view details");
     detailsLabel_->setWordWrap(true);
     detailsLabel_->setStyleSheet("color: #CCCCCC; padding: 10px; background-color: #2D2D30;");
     detailsArea_->setWidget(detailsLabel_);
     mainLayout_->addWidget(detailsArea_);
     
-    // 连接信号
+    // Connect signals
     connect(zoomInButton_, &QPushButton::clicked, this, &FunctionGraphView::zoomIn);
     connect(zoomOutButton_, &QPushButton::clicked, this, &FunctionGraphView::zoomOut);
     connect(resetZoomButton_, &QPushButton::clicked, this, &FunctionGraphView::resetZoom);
@@ -77,7 +77,7 @@ void FunctionGraphView::setupUI() {
     connect(layoutCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &FunctionGraphView::onLayoutTypeChanged);
     
-    // 设置样式
+    // Set styles
     setStyleSheet(R"(
         QPushButton {
             background-color: #0E639C;
@@ -123,7 +123,7 @@ void FunctionGraphView::generateGraph() {
     clearGraph();
     
     if (functions_.empty()) {
-        infoLabel_->setText("没有找到函数定义");
+        infoLabel_->setText("No function definitions found");
         return;
     }
     
@@ -131,11 +131,11 @@ void FunctionGraphView::generateGraph() {
     createEdges();
     layoutNodes();
     
-    // 适配视图
+    // Fit view
     scene_->setSceneRect(scene_->itemsBoundingRect());
     graphView_->fitInView(scene_->sceneRect(), Qt::KeepAspectRatio);
     
-    infoLabel_->setText(QString("已显示 %1 个函数，%2 个调用关系")
+    infoLabel_->setText(QString("Displaying %1 functions, %2 call relationships")
                        .arg(functions_.size())
                        .arg(edges_.size()));
 }
@@ -153,7 +153,7 @@ void FunctionGraphView::createNodes() {
         nodes_[func.name] = node;
         scene_->addItem(node);
         
-        // 连接节点点击事件
+        // Connect node click events
         connect(node, &FunctionNode::nodeClicked, this, &FunctionGraphView::onNodeClicked);
     }
 }
@@ -206,7 +206,7 @@ void FunctionGraphView::layoutCircular() {
         ++i;
     }
     
-    // 更新连接线
+    // Update connection lines
     for (auto* edge : edges_) {
         edge->updateLine();
     }
@@ -215,7 +215,7 @@ void FunctionGraphView::layoutCircular() {
 void FunctionGraphView::layoutHierarchical() {
     if (nodes_.empty()) return;
     
-    // 找到根节点（没有被其他函数调用的函数）
+    // Find root nodes (functions not called by other functions)
     std::set<std::string> calledFunctions;
     for (const auto& pair : functionCalls_) {
         for (const std::string& called : pair.second) {
@@ -230,24 +230,24 @@ void FunctionGraphView::layoutHierarchical() {
         }
     }
     
-    // 如果没有根节点，随机选择一些
+    // If no root nodes, randomly select some
     if (rootFunctions.empty()) {
         for (int i = 0; i < std::min(3, (int)functions_.size()); ++i) {
             rootFunctions.push_back(functions_[i].name);
         }
     }
     
-    // 层次布局
+    // Hierarchical layout
     std::map<std::string, int> levels;
     std::queue<std::string> queue;
     
-    // 初始化根节点
+    // Initialize root nodes
     for (const std::string& root : rootFunctions) {
         levels[root] = 0;
         queue.push(root);
     }
     
-    // BFS 分配层级
+    // BFS assign levels
     while (!queue.empty()) {
         std::string current = queue.front();
         queue.pop();
@@ -263,20 +263,20 @@ void FunctionGraphView::layoutHierarchical() {
         }
     }
     
-    // 为未分配层级的节点分配层级
+    // Assign levels to unassigned nodes
     for (const auto& func : functions_) {
         if (levels.find(func.name) == levels.end()) {
             levels[func.name] = 0;
         }
     }
     
-    // 按层级组织节点
+    // Organize nodes by level
     std::map<int, std::vector<std::string>> levelGroups;
     for (const auto& pair : levels) {
         levelGroups[pair.second].push_back(pair.first);
     }
     
-    // 定位节点
+    // Position nodes
     for (const auto& levelPair : levelGroups) {
         int level = levelPair.first;
         const auto& functionNames = levelPair.second;
@@ -294,7 +294,7 @@ void FunctionGraphView::layoutHierarchical() {
         }
     }
     
-    // 更新连接线
+    // Update connection lines
     for (auto* edge : edges_) {
         edge->updateLine();
     }
@@ -303,13 +303,13 @@ void FunctionGraphView::layoutHierarchical() {
 void FunctionGraphView::layoutForceDirected() {
     if (nodes_.empty()) return;
     
-    // 简单的力导向布局
+    // Simple force-directed layout
     const int iterations = 100;
     const qreal repulsion = 50000.0;
     const qreal attraction = 0.01;
     const qreal damping = 0.9;
     
-    // 随机初始位置
+    // Random initial positions
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<> dis(-200, 200);
@@ -321,12 +321,12 @@ void FunctionGraphView::layoutForceDirected() {
     for (int iter = 0; iter < iterations; ++iter) {
         std::map<FunctionNode*, QPointF> forces;
         
-        // 初始化力
+        // Initialize forces
         for (auto& pair : nodes_) {
             forces[pair.second] = QPointF(0, 0);
         }
         
-        // 计算排斥力
+        // Calculate repulsion forces
         for (auto& pair1 : nodes_) {
             for (auto& pair2 : nodes_) {
                 if (pair1.second == pair2.second) continue;
@@ -343,7 +343,7 @@ void FunctionGraphView::layoutForceDirected() {
             }
         }
         
-        // 计算吸引力（通过连接）
+        // Calculate attraction forces (through connections)
         for (auto* edge : edges_) {
             QPointF pos1 = edge->fromNode_->pos();
             QPointF pos2 = edge->toNode_->pos();
@@ -357,7 +357,7 @@ void FunctionGraphView::layoutForceDirected() {
             }
         }
         
-        // 应用力
+        // Apply forces
         for (auto& pair : nodes_) {
             QPointF pos = pair.second->pos();
             QPointF force = forces[pair.second];
@@ -366,7 +366,7 @@ void FunctionGraphView::layoutForceDirected() {
         }
     }
     
-    // 更新连接线
+    // Update connection lines
     for (auto* edge : edges_) {
         edge->updateLine();
     }
@@ -390,7 +390,7 @@ void FunctionGraphView::autoLayout() {
 }
 
 void FunctionGraphView::onNodeClicked(FunctionNode* node) {
-    // 取消之前选中的节点
+    // Deselect previously selected node
     if (selectedNode_) {
         selectedNode_->setSelected(false);
     }
@@ -398,15 +398,15 @@ void FunctionGraphView::onNodeClicked(FunctionNode* node) {
     selectedNode_ = node;
     node->setSelected(true);
     
-    // 显示函数详细信息
+    // Show function details
     const CppFunction& func = node->getFunction();
     QString details = QString(
         "<h3 style='color: #4EC9B0;'>%1</h3>"
-        "<p><b>返回类型:</b> %2</p>"
-        "<p><b>行号:</b> %3</p>"
-        "<p><b>参数:</b></p>"
+        "<p><b>Return Type:</b> %2</p>"
+        "<p><b>Line Number:</b> %3</p>"
+        "<p><b>Parameters:</b></p>"
         "<ul>%4</ul>"
-        "<p><b>调用的函数:</b> %5</p>"
+        "<p><b>Called Functions:</b> %5</p>"
     ).arg(QString::fromStdString(func.name))
      .arg(QString::fromStdString(func.returnType))
      .arg(func.lineNumber);
@@ -450,18 +450,18 @@ FunctionNode::FunctionNode(const CppFunction& function, QGraphicsItem* parent)
     : QObject(), QGraphicsEllipseItem(-40, -40, 80, 80, parent), function_(function), 
       isSelected_(false), isHighlighted_(false) {
     
-    // 设置节点样式
+    // Set node style
     setBrush(QBrush(QColor("#3C3C3C")));
     setPen(QPen(QColor("#007ACC"), 2));
     setFlag(QGraphicsItem::ItemIsMovable);
     setFlag(QGraphicsItem::ItemIsSelectable);
     
-    // 创建文本
+    // Create text
     textItem_ = new QGraphicsTextItem(QString::fromStdString(function.name), this);
     textItem_->setDefaultTextColor(QColor("#CCCCCC"));
     textItem_->setFont(QFont("Arial", 10, QFont::Bold));
     
-    // 居中文本
+    // Center text
     QRectF textRect = textItem_->boundingRect();
     textItem_->setPos(-textRect.width() / 2, -textRect.height() / 2);
 }
@@ -509,7 +509,7 @@ FunctionEdge::FunctionEdge(FunctionNode* from, FunctionNode* to, QGraphicsItem* 
     : QGraphicsLineItem(parent), fromNode_(from), toNode_(to), isHighlighted_(false) {
     
     setPen(QPen(QColor("#6A6A6A"), 1));
-    setZValue(-1); // 在节点下方绘制
+    setZValue(-1); // Draw below nodes
     
     updateLine();
     createArrowHead();
@@ -521,13 +521,13 @@ void FunctionEdge::updateLine() {
     QPointF startPos = fromNode_->pos();
     QPointF endPos = toNode_->pos();
     
-    // 计算节点边缘的连接点
+    // Calculate connection points at node edges
     QPointF direction = endPos - startPos;
     qreal length = sqrt(direction.x() * direction.x() + direction.y() * direction.y());
     
     if (length > 0) {
         direction /= length;
-        QPointF startPoint = startPos + direction * 40; // 节点半径
+        QPointF startPoint = startPos + direction * 40; // Node radius
         QPointF endPoint = endPos - direction * 40;
         
         setLine(QLineF(startPoint, endPoint));
@@ -577,6 +577,4 @@ QPolygonF FunctionEdge::createArrowPolygon(const QPointF& tip, const QPointF& ta
     arrow << tip - direction * arrowLength - normal * arrowWidth;
     
     return arrow;
-}
- 
-#include "function_graph_view.moc" 
+} 

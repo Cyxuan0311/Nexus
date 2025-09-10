@@ -26,7 +26,7 @@ int main(int argc, char *argv[]) {
     if (argc > 1) {
         QString filePath = QString::fromLocal8Bit(argv[1]);
         if (QFile::exists(filePath)) {
-            // 延迟加载文件，确保窗口完全初始化
+            // Delay file loading to ensure window is fully initialized
             QTimer::singleShot(100, [&window, filePath]() {
                 window.loadFileFromPath(filePath);
             });

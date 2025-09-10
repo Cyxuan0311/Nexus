@@ -3,6 +3,7 @@
 #include <iomanip>
 #include <algorithm>
 #include <regex>
+#include <QtGlobal>
 
 XmlSerializer::XmlSerializer() {
 }
@@ -43,30 +44,34 @@ std::string XmlSerializer::serialize(const std::shared_ptr<XmlNode>& node,
     }
 }
 
-std::shared_ptr<XmlNode> XmlSerializer::deserializeFromXml(const std::string& content) {
-    // 使用现有的XmlParser
-    // 这里需要修改XmlParser以支持从字符串解析
-    return nullptr; // TODO: 实现
+std::shared_ptr<XmlNode> XmlSerializer::deserializeFromXml(const std::string& content) const {
+    Q_UNUSED(content);
+    // Use existing XmlParser
+    // Need to modify XmlParser to support parsing from string
+    return nullptr; // TODO: implement
 }
 
-std::shared_ptr<XmlNode> XmlSerializer::deserializeFromJson(const std::string& content) {
-    // TODO: 实现JSON反序列化
+std::shared_ptr<XmlNode> XmlSerializer::deserializeFromJson(const std::string& content) const {
+    Q_UNUSED(content);
+    // TODO: implement JSON deserialization
     return nullptr;
 }
 
-std::shared_ptr<XmlNode> XmlSerializer::deserializeFromYaml(const std::string& content) {
-    // TODO: 实现YAML反序列化
+std::shared_ptr<XmlNode> XmlSerializer::deserializeFromYaml(const std::string& content) const {
+    Q_UNUSED(content);
+    // TODO: implement YAML deserialization
     return nullptr;
 }
 
-std::shared_ptr<XmlNode> XmlSerializer::deserializeFromCsv(const std::string& content) {
-    // TODO: 实现CSV反序列化
+std::shared_ptr<XmlNode> XmlSerializer::deserializeFromCsv(const std::string& content) const {
+    Q_UNUSED(content);
+    // TODO: implement CSV deserialization
     return nullptr;
 }
 
 bool XmlSerializer::validateXml(const std::string& xmlContent) const {
     try {
-        // 尝试解析XML，如果成功则有效
+        // Try to parse XML, if successful then valid
         auto node = deserializeFromXml(xmlContent);
         return node != nullptr;
     } catch (...) {
@@ -76,7 +81,9 @@ bool XmlSerializer::validateXml(const std::string& xmlContent) const {
 
 bool XmlSerializer::validateAgainstSchema(const std::string& xmlContent, 
                                          const std::string& schemaPath) const {
-    // TODO: 实现XML Schema验证
+    Q_UNUSED(xmlContent);
+    Q_UNUSED(schemaPath);
+    // TODO: implement XML Schema validation
     return false;
 }
 
@@ -96,7 +103,7 @@ std::string XmlSerializer::convertToYaml(const std::shared_ptr<XmlNode>& node) c
     return serializeToYaml(node);
 }
 
-// 私有方法实现
+// Private method implementations
 
 std::string XmlSerializer::_serializeXmlNode(const std::shared_ptr<XmlNode>& node, 
                                             int indent, 
@@ -110,7 +117,7 @@ std::string XmlSerializer::_serializeXmlNode(const std::shared_ptr<XmlNode>& nod
         case XmlNode::NodeType::Element: {
             ss << indentStr << "<" << node->getName();
             
-            // 添加属性
+            // Add attributes
             for (const auto& attr : node->getAttributes()) {
                 ss << " " << attr.first << "=\"" << _escapeXmlString(attr.second) << "\"";
             }
@@ -136,7 +143,7 @@ std::string XmlSerializer::_serializeXmlNode(const std::shared_ptr<XmlNode>& nod
                     }
                 }
                 
-                // 处理文本子节点
+                // Handle text child nodes
                 for (const auto& child : node->getChildren()) {
                     if (child->getType() == XmlNode::NodeType::Text) {
                         ss << _escapeXmlString(child->getValue());
@@ -180,10 +187,10 @@ std::string XmlSerializer::_serializeJsonNode(const std::shared_ptr<XmlNode>& no
         case XmlNode::NodeType::Element: {
             ss << indentStr << "{\n";
             
-            // 添加元素名称
+            // Add element name
             ss << childIndentStr << "\"@name\": \"" << _escapeJsonString(node->getName()) << "\"";
             
-            // 添加属性
+            // Add attributes
             if (!node->getAttributes().empty()) {
                 ss << ",\n" << childIndentStr << "\"@attributes\": {\n";
                 std::string attrIndentStr = _getIndent(indent + 2, style);
@@ -197,13 +204,13 @@ std::string XmlSerializer::_serializeJsonNode(const std::shared_ptr<XmlNode>& no
                 ss << "\n" << childIndentStr << "}";
             }
             
-            // 添加文本内容
+            // Add text content
             if (!node->getValue().empty()) {
                 ss << ",\n" << childIndentStr << "\"@text\": \"" 
                    << _escapeJsonString(node->getValue()) << "\"";
             }
             
-            // 添加子元素
+            // Add child elements
             std::vector<std::shared_ptr<XmlNode>> elementChildren;
             std::vector<std::shared_ptr<XmlNode>> textChildren;
             
@@ -250,7 +257,7 @@ std::string XmlSerializer::_serializeYamlNode(const std::shared_ptr<XmlNode>& no
         case XmlNode::NodeType::Element: {
             ss << indentStr << node->getName() << ":\n";
             
-            // 添加属性
+            // Add attributes
             if (!node->getAttributes().empty()) {
                 ss << indentStr << "  attributes:\n";
                 for (const auto& attr : node->getAttributes()) {
@@ -259,12 +266,12 @@ std::string XmlSerializer::_serializeYamlNode(const std::shared_ptr<XmlNode>& no
                 }
             }
             
-            // 添加文本内容
+            // Add text content
             if (!node->getValue().empty()) {
                 ss << indentStr << "  text: \"" << _escapeYamlString(node->getValue()) << "\"\n";
             }
             
-            // 添加子元素
+            // Add child elements
             for (const auto& child : node->getChildren()) {
                 if (child->getType() == XmlNode::NodeType::Element) {
                     ss << _serializeYamlNode(child, indent + 2, style);
@@ -287,27 +294,27 @@ std::string XmlSerializer::_serializeCsvNode(const std::shared_ptr<XmlNode>& nod
     
     std::stringstream ss;
     
-    // 简单的CSV序列化，适用于表格数据
+    // Simple CSV serialization, suitable for tabular data
     if (node->getType() == XmlNode::NodeType::Element) {
-        // 假设这是一个表格结构
+        // Assume this is a table structure
         std::vector<std::string> headers;
         std::vector<std::vector<std::string>> rows;
         
-        // 提取表头
+        // Extract table headers
         for (const auto& child : node->getChildren()) {
             if (child->getType() == XmlNode::NodeType::Element) {
                 headers.push_back(child->getName());
             }
         }
         
-        // 写入CSV头
+        // Write CSV header
         for (size_t i = 0; i < headers.size(); ++i) {
             if (i > 0) ss << ",";
             ss << "\"" << headers[i] << "\"";
         }
         ss << "\n";
         
-        // 写入数据行
+        // Write data rows
         for (const auto& child : node->getChildren()) {
             if (child->getType() == XmlNode::NodeType::Element) {
                 ss << "\"" << child->getValue() << "\"";
@@ -335,7 +342,7 @@ std::string XmlSerializer::_getIndent(int level, OutputStyle style) const {
 std::string XmlSerializer::_escapeXmlString(const std::string& str) const {
     std::string result = str;
     
-    // 替换XML特殊字符
+    // Replace XML special characters
     std::map<std::string, std::string> replacements = {
         {"&", "&amp;"},
         {"<", "&lt;"},
@@ -358,7 +365,7 @@ std::string XmlSerializer::_escapeXmlString(const std::string& str) const {
 std::string XmlSerializer::_escapeJsonString(const std::string& str) const {
     std::string result = str;
     
-    // 替换JSON特殊字符
+    // Replace JSON special characters
     std::map<std::string, std::string> replacements = {
         {"\\", "\\\\"},
         {"\"", "\\\""},
@@ -381,7 +388,7 @@ std::string XmlSerializer::_escapeJsonString(const std::string& str) const {
 std::string XmlSerializer::_escapeYamlString(const std::string& str) const {
     std::string result = str;
     
-    // 替换YAML特殊字符
+    // Replace YAML special characters
     std::map<std::string, std::string> replacements = {
         {"\\", "\\\\"},
         {"\"", "\\\""},

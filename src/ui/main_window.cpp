@@ -13,6 +13,7 @@
 #include <QToolBar>
 #include <QStatusBar>
 #include <QKeySequence>
+#include <QtGlobal>
 #include <QVariant>
 #include <QStyle>
 #include <QToolButton>
@@ -23,12 +24,107 @@
 #include <QMessageBox>
 #include <QIcon>
 #include <QProgressBar>
+#include <QScrollBar>
+#include <QPainter>
+#include <QTextBlock>
 #include <fstream>
 #include <stdexcept>
 #include "markdown_highlighter.h"
 #include "cpp_highlighter.h"
 #include "python_highlighter.h"
 #include "go_highlighter.h"
+
+// Enhanced FoldingTextEdit with line numbers
+class EnhancedFoldingTextEdit : public FoldingTextEdit {
+    Q_OBJECT
+
+public:
+    explicit EnhancedFoldingTextEdit(QWidget* parent = nullptr) : FoldingTextEdit(parent) {
+        lineNumberArea_ = new LineNumberArea(this);
+        
+        connect(this->document(), &QTextDocument::blockCountChanged, this, &EnhancedFoldingTextEdit::updateLineNumberAreaWidth);
+        connect(this->verticalScrollBar(), &QScrollBar::valueChanged, this, [this](int) { updateLineNumberArea(); });
+        connect(this, &QPlainTextEdit::textChanged, this, [this]() { updateLineNumberArea(); });
+        connect(this, &QPlainTextEdit::cursorPositionChanged, this, [this]() { updateLineNumberArea(); });
+        
+        updateLineNumberAreaWidth(0);
+    }
+
+    void lineNumberAreaPaintEvent(QPaintEvent* event) {
+        QPainter painter(lineNumberArea_);
+        painter.fillRect(event->rect(), QColor(45, 45, 45));
+
+        QTextBlock block = firstVisibleBlock();
+        int blockNumber = block.blockNumber();
+        int top = qRound(blockBoundingGeometry(block).translated(contentOffset()).top());
+        int bottom = top + qRound(blockBoundingRect(block).height());
+
+        while (block.isValid() && top <= event->rect().bottom()) {
+            if (block.isVisible() && bottom >= event->rect().top()) {
+                QString number = QString::number(blockNumber + 1);
+                painter.setPen(QColor(150, 150, 150));
+                painter.drawText(0, top, lineNumberArea_->width(), fontMetrics().height(),
+                               Qt::AlignRight, number);
+            }
+
+            block = block.next();
+            top = bottom;
+            bottom = top + qRound(blockBoundingRect(block).height());
+            ++blockNumber;
+        }
+    }
+
+    int lineNumberAreaWidth() {
+        int digits = 1;
+        int max = qMax(1, blockCount());
+        while (max >= 10) {
+            max /= 10;
+            ++digits;
+        }
+
+        int space = 13 + fontMetrics().horizontalAdvance(QLatin1Char('9')) * digits;
+        return space;
+    }
+
+protected:
+    void resizeEvent(QResizeEvent* event) override {
+        QPlainTextEdit::resizeEvent(event);
+        QRect cr = contentsRect();
+        lineNumberArea_->setGeometry(QRect(cr.left(), cr.top(), lineNumberAreaWidth(), cr.height()));
+    }
+
+private slots:
+    void updateLineNumberAreaWidth(int newBlockCount) {
+        Q_UNUSED(newBlockCount)
+        setViewportMargins(lineNumberAreaWidth(), 0, 0, 0);
+    }
+
+    void updateLineNumberArea() {
+        lineNumberArea_->update();
+    }
+
+private:
+    class LineNumberArea : public QWidget {
+    public:
+        LineNumberArea(EnhancedFoldingTextEdit* editor) : QWidget(editor), codeEditor_(editor) {}
+
+        QSize sizeHint() const override {
+            return QSize(codeEditor_->lineNumberAreaWidth(), 0);
+        }
+
+    protected:
+        void paintEvent(QPaintEvent* event) override {
+            codeEditor_->lineNumberAreaPaintEvent(event);
+        }
+
+    private:
+        EnhancedFoldingTextEdit* codeEditor_;
+    };
+
+    LineNumberArea* lineNumberArea_;
+};
+
+#include "main_window.moc"
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent) {
@@ -48,9 +144,9 @@ MainWindow::MainWindow(QWidget *parent)
     isPythonMode_ = false;
     isGoMode_ = false;
     currentHighlighter_ = nullptr;
-    isDarkTheme_ = true; // 默认使用深色主题
+    isDarkTheme_ = true; // Default to dark theme
     
-    setWindowTitle("Nexus - 多功能代码编辑器与可视化工具");
+    setWindowTitle("Nexus - Multi-Purpose Code Editor & Visualizer");
     
     // Set window icon
     QIcon windowIcon("icon/log.svg");
@@ -63,54 +159,117 @@ MainWindow::~MainWindow() {
 }
 
 void MainWindow::setupUi() {
-    // Create main splitter
+    // Create main splitter - only two panels now
     mainSplitter_ = new QSplitter(Qt::Horizontal, this);
     setCentralWidget(mainSplitter_);
     
-    // Left panel
+    // Left panel - File browser and controls
     leftPanel_ = new QWidget();
     QVBoxLayout* leftLayout = new QVBoxLayout(leftPanel_);
-    leftLayout->setContentsMargins(0, 0, 0, 0);
+    leftLayout->setContentsMargins(8, 8, 8, 8);
+    leftLayout->setSpacing(8);
     
-    // File controls
-    QHBoxLayout* fileLayout = new QHBoxLayout();
-    openButton_ = new QPushButton("Open File");
+    // Top controls with icons
+    QHBoxLayout* topControlsLayout = new QHBoxLayout();
+    
+    // Open file button with icon
+    openButton_ = new QPushButton();
+    openButton_->setIcon(style()->standardIcon(QStyle::SP_DirOpenIcon));
+    openButton_->setText("Open File");
+    openButton_->setToolTip("Open a file to edit");
+    openButton_->setIconSize(QSize(16, 16));
+    
+    // Open project folder button
+    openProjectButton_ = new QPushButton();
+    openProjectButton_->setIcon(style()->standardIcon(QStyle::SP_DirIcon));
+    openProjectButton_->setText("Open Project");
+    openProjectButton_->setToolTip("Open a project folder");
+    openProjectButton_->setIconSize(QSize(16, 16));
+    
+    // Parse dropdown menu
+    QMenu* parseMenu = new QMenu();
+    parseMenu->addAction(style()->standardIcon(QStyle::SP_FileIcon), "Parse XML", this, &MainWindow::parseXml);
+    parseMenu->addAction(style()->standardIcon(QStyle::SP_ComputerIcon), "Parse C++", this, &MainWindow::parseCpp);
+    parseMenu->addAction(style()->standardIcon(QStyle::SP_ComputerIcon), "Parse Python", this, &MainWindow::parsePython);
+    parseMenu->addAction(style()->standardIcon(QStyle::SP_ComputerIcon), "Parse Go", this, &MainWindow::parseGo);
+    parseMenu->addSeparator();
+    parseMenu->addAction(style()->standardIcon(QStyle::SP_FileDialogDetailedView), "Generate Function Graph", this, &MainWindow::generateFunctionGraph);
+    
+    parseButton_ = new QPushButton();
+    parseButton_->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
+    parseButton_->setText("Parse");
+    parseButton_->setMenu(parseMenu);
+    parseButton_->setEnabled(false);
+    parseButton_->setToolTip("Parse and analyze code");
+    parseButton_->setIconSize(QSize(16, 16));
+    
+    // Edit controls
+    editButton_ = new QPushButton();
+    editButton_->setIcon(style()->standardIcon(QStyle::SP_FileDialogDetailedView));
+    editButton_->setText("Edit");
+    editButton_->setToolTip("Edit file content");
+    editButton_->setIconSize(QSize(16, 16));
+    
+    saveButton_ = new QPushButton();
+    saveButton_->setIcon(style()->standardIcon(QStyle::SP_DialogSaveButton));
+    saveButton_->setText("Save");
+    saveButton_->setEnabled(false);
+    saveButton_->setToolTip("Save changes");
+    saveButton_->setIconSize(QSize(16, 16));
+    
+    topControlsLayout->addWidget(openButton_);
+    topControlsLayout->addWidget(openProjectButton_);
+    topControlsLayout->addWidget(parseButton_);
+    topControlsLayout->addWidget(editButton_);
+    topControlsLayout->addWidget(saveButton_);
+    topControlsLayout->addStretch();
+    
+    leftLayout->addLayout(topControlsLayout);
+    
+    // File info
     fileLabel_ = new QLabel("No file selected");
-    fileLabel_->setStyleSheet("color: #4EC9B0; font-weight: bold;");
-    fileLayout->addWidget(openButton_);
-    fileLayout->addWidget(fileLabel_);
-    fileLayout->addStretch();
+    fileLabel_->setStyleSheet("color: #4EC9B0; font-weight: bold; padding: 4px;");
+    fileLabel_->setWordWrap(true);
+    leftLayout->addWidget(fileLabel_);
     
-    leftLayout->addLayout(fileLayout);
-    
-    // Tree widget
+    // Tree widget for file structure/analysis results
     treeWidget_ = new QTreeWidget();
-    treeWidget_->setHeaderLabel("XML Structure");
+    treeWidget_->setHeaderLabel("File Structure");
     treeWidget_->setAlternatingRowColors(true);
+    treeWidget_->setRootIsDecorated(true);
     leftLayout->addWidget(treeWidget_);
     
-    // Parse buttons
-    parseButton_ = new QPushButton("Parse XML");
-    parseButton_->setEnabled(false);
-    leftLayout->addWidget(parseButton_);
+    // Right panel - Code editor
+    centerPanel_ = new QWidget();
+    QVBoxLayout* centerLayout = new QVBoxLayout(centerPanel_);
+    centerLayout->setContentsMargins(8, 8, 8, 8);
+    centerLayout->setSpacing(8);
     
-    cppParseButton_ = new QPushButton("Parse C++");
-    cppParseButton_->setEnabled(false);
-    leftLayout->addWidget(cppParseButton_);
+    // Editor with line numbers
+    xmlEditor_ = new EnhancedFoldingTextEdit();
+    xmlEditor_->setReadOnly(true);
+    xmlEditor_->setFont(QFont("Consolas", 12));
+    xmlEditor_->setLineWrapMode(QPlainTextEdit::NoWrap);
+    xmlEditor_->setStyleSheet("QPlainTextEdit { border: 1px solid #3E3E42; border-radius: 4px; }");
     
-    pythonParseButton_ = new QPushButton("Parse Python");
-    pythonParseButton_->setEnabled(false);
-    leftLayout->addWidget(pythonParseButton_);
+    // Set proper margins and tab settings
+#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
+    xmlEditor_->setTabStopDistance(4 * xmlEditor_->fontMetrics().horizontalAdvance(' '));
+#else
+    xmlEditor_->setTabStopWidth(4 * xmlEditor_->fontMetrics().horizontalAdvance(' '));
+#endif
     
-    goParseButton_ = new QPushButton("Parse Go");
-    goParseButton_->setEnabled(false);
-    leftLayout->addWidget(goParseButton_);
+    // Default XML highlighter
+    currentHighlighter_ = new XmlHighlighter(xmlEditor_->document());
     
-    graphButton_ = new QPushButton("生成函数关系图");
-    graphButton_->setEnabled(false);
-    leftLayout->addWidget(graphButton_);
+    centerLayout->addWidget(xmlEditor_);
     
-    // Right panel (Tabs)
+    // Add panels to splitter - only two panels now
+    mainSplitter_->addWidget(leftPanel_);
+    mainSplitter_->addWidget(centerPanel_);
+    mainSplitter_->setSizes({350, 650});
+    
+    // Initialize hidden panels for analysis results
     rightPanel_ = new QWidget();
     QVBoxLayout* rightLayout = new QVBoxLayout(rightPanel_);
     rightLayout->setContentsMargins(0, 0, 0, 0);
@@ -119,7 +278,7 @@ void MainWindow::setupUi() {
     
     QWidget* detailsTab = new QWidget();
     QVBoxLayout* detailsLayout = new QVBoxLayout(detailsTab);
-    QLabel* detailsLabel = new QLabel("Node Details");
+    QLabel* detailsLabel = new QLabel("Analysis Results");
     detailsLabel->setStyleSheet("color: #4EC9B0; font-weight: bold; font-size: 14px;");
     detailsTextEdit_ = new QTextEdit();
     detailsTextEdit_->setReadOnly(true);
@@ -129,7 +288,7 @@ void MainWindow::setupUi() {
     
     QWidget* previewTab = new QWidget();
     QVBoxLayout* previewLayout = new QVBoxLayout(previewTab);
-    QLabel* previewLabel = new QLabel("Markdown Preview");
+    QLabel* previewLabel = new QLabel("Preview");
     previewLabel->setStyleSheet("color: #4EC9B0; font-weight: bold; font-size: 14px;");
     markdownPreview_ = new QTextBrowser();
     markdownPreview_->setOpenExternalLinks(true);
@@ -139,54 +298,18 @@ void MainWindow::setupUi() {
     
     // Function Graph Tab
     functionGraphView_ = new FunctionGraphView();
-    rightTabs_->addTab(functionGraphView_, "函数关系图");
+    rightTabs_->addTab(functionGraphView_, "Function Graph");
     
     rightLayout->addWidget(rightTabs_);
     
-    // Center panel for editor
-    centerPanel_ = new QWidget();
-    QVBoxLayout* centerLayout = new QVBoxLayout(centerPanel_);
-    centerLayout->setContentsMargins(0, 0, 0, 0);
-    
-    // Editor controls
-    QHBoxLayout* editorControlsLayout = new QHBoxLayout();
-    editButton_ = new QPushButton("Edit");
-    saveButton_ = new QPushButton("Save Changes");
-    saveButton_->setEnabled(false);
-    editorControlsLayout->addWidget(editButton_);
-    editorControlsLayout->addWidget(saveButton_);
-    editorControlsLayout->addStretch();
-    
-    centerLayout->addLayout(editorControlsLayout);
-    
-    // Editor
-    xmlEditor_ = new FoldingTextEdit();
-    xmlEditor_->setReadOnly(true);
-    xmlEditor_->setFont(QFont("Consolas", 12));
-    xmlEditor_->setLineWrapMode(QPlainTextEdit::NoWrap);
-    
-    // Default XML highlighter
-    currentHighlighter_ = new XmlHighlighter(xmlEditor_->document());
-    
-    centerLayout->addWidget(xmlEditor_);
-    
-    // Add panels to splitter
-    mainSplitter_->addWidget(leftPanel_);
-    mainSplitter_->addWidget(centerPanel_);
-    mainSplitter_->addWidget(rightPanel_);
-    mainSplitter_->setSizes({400, 600, 400});
-    
     // Connect signals
     connect(openButton_, &QPushButton::clicked, this, &MainWindow::openFile);
-    connect(parseButton_, &QPushButton::clicked, this, &MainWindow::parseXml);
-    connect(cppParseButton_, &QPushButton::clicked, this, &MainWindow::parseCpp);
-    connect(pythonParseButton_, &QPushButton::clicked, this, &MainWindow::parsePython);
-    connect(goParseButton_, &QPushButton::clicked, this, &MainWindow::parseGo);
-    connect(graphButton_, &QPushButton::clicked, this, &MainWindow::generateFunctionGraph);
+    connect(openProjectButton_, &QPushButton::clicked, this, &MainWindow::openProject);
     connect(editButton_, &QPushButton::clicked, this, &MainWindow::toggleEditMode);
     connect(saveButton_, &QPushButton::clicked, this, &MainWindow::saveXmlContent);
     connect(treeWidget_, &QTreeWidget::itemClicked, this, &MainWindow::onTreeItemClicked);
     connect(xmlEditor_, &QPlainTextEdit::textChanged, this, &MainWindow::renderMarkdownPreview);
+    connect(xmlEditor_, &QPlainTextEdit::textChanged, this, &MainWindow::updateLineCount);
 }
 
 void MainWindow::setupMenuBar() {
@@ -246,7 +369,7 @@ void MainWindow::setupMenuBar() {
     
     editMenu->addSeparator();
     
-    // 解析快捷键
+    // Parse shortcuts
     parseCppAction_ = editMenu->addAction("Parse &C++");
     parseCppAction_->setShortcut(QKeySequence("Ctrl+Shift+C"));
     connect(parseCppAction_, &QAction::triggered, this, &MainWindow::parseCpp);
@@ -261,7 +384,7 @@ void MainWindow::setupMenuBar() {
     
     editMenu->addSeparator();
     
-    // 生成函数图快捷键
+    // Generate function graph shortcut
     generateGraphAction_ = editMenu->addAction("Generate &Function Graph");
     generateGraphAction_->setShortcut(QKeySequence("Ctrl+Shift+F"));
     connect(generateGraphAction_, &QAction::triggered, this, &MainWindow::generateFunctionGraph);
@@ -307,11 +430,21 @@ void MainWindow::setupToolBar() {
 void MainWindow::setupStatusBar() {
     statusBar()->showMessage("Ready");
     
-    // 添加进度条
+    // Add progress bar
     progressBar_ = new QProgressBar();
     progressBar_->setVisible(false);
     progressBar_->setMaximumWidth(200);
     statusBar()->addPermanentWidget(progressBar_);
+    
+    // Add line count label
+    lineCountLabel_ = new QLabel("Lines: 0");
+    lineCountLabel_->setStyleSheet("color: #CCCCCC; font-weight: bold;");
+    statusBar()->addPermanentWidget(lineCountLabel_);
+    
+    // Add character count label
+    charCountLabel_ = new QLabel("Chars: 0");
+    charCountLabel_->setStyleSheet("color: #CCCCCC; font-weight: bold;");
+    statusBar()->addPermanentWidget(charCountLabel_);
 }
 
 void MainWindow::setupStyle() {
@@ -390,21 +523,35 @@ void MainWindow::setupStyle() {
             color: white;
             padding: 8px 16px;
             font-weight: bold;
-            border-radius: 4px;
+            border-radius: 6px;
+            min-height: 20px;
+            min-width: 80px;
         }
         
         QPushButton:hover {
             background-color: #1177BB;
+            border-color: #1E90FF;
         }
         
         QPushButton:pressed {
             background-color: #005A9E;
+            border-color: #0066CC;
         }
         
         QPushButton:disabled {
             background-color: #3E3E42;
             border: 1px solid #5A5A5A;
             color: #6A6A6A;
+        }
+        
+        QPushButton::menu-indicator {
+            image: none;
+            border: none;
+            width: 12px;
+            height: 12px;
+            background-color: white;
+            border-radius: 2px;
+            margin-right: 4px;
         }
         
         QLabel {
@@ -471,9 +618,6 @@ void MainWindow::openFile() {
         currentFilePath_ = fileName.toStdString();
         fileLabel_->setText(QFileInfo(fileName).fileName());
         parseButton_->setEnabled(true);
-        cppParseButton_->setEnabled(true);
-        pythonParseButton_->setEnabled(true);
-        goParseButton_->setEnabled(true);
         
         // Load content
         QFile file(fileName);
@@ -501,6 +645,32 @@ void MainWindow::openFile() {
         renderMarkdownPreview();
         
         statusBar()->showMessage("File loaded: " + fileName);
+    }
+}
+
+void MainWindow::openProject() {
+    QString projectPath = QFileDialog::getExistingDirectory(this,
+        "Open Project Folder", "",
+        QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
+    
+    if (!projectPath.isEmpty()) {
+        // Clear current display
+        clearDisplay();
+        
+        // Set project path
+        currentProjectPath_ = projectPath.toStdString();
+        
+        // Update file label to show project name
+        QFileInfo projectInfo(projectPath);
+        fileLabel_->setText("Project: " + projectInfo.fileName());
+        
+        // Populate tree widget with project structure
+        populateProjectTree(projectPath);
+        
+        // Enable parse button for project analysis
+        parseButton_->setEnabled(true);
+        
+        statusBar()->showMessage("Project opened: " + projectPath);
     }
 }
 
@@ -532,68 +702,34 @@ void MainWindow::applyHighlighterForCurrentFile() {
     }
     if (isMarkdownMode_) {
         currentHighlighter_ = new MarkdownHighlighter(xmlEditor_->document());
-        rightTabs_->setTabEnabled(0, false); // Details tab off for Markdown
-        rightTabs_->setTabEnabled(2, false); // Function graph tab off for Markdown
-        rightTabs_->setCurrentIndex(1);
-        if (parseButton_) parseButton_->setEnabled(false);
-        if (cppParseButton_) cppParseButton_->setEnabled(false);
-        if (pythonParseButton_) pythonParseButton_->setEnabled(false);
-        if (goParseButton_) goParseButton_->setEnabled(false);
-        if (graphButton_) graphButton_->setEnabled(false);
+        // Hide analysis panel for markdown files
+        if (mainSplitter_->count() == 3) {
+            rightPanel_->hide();
+            mainSplitter_->setSizes({350, 650});
+        }
+        parseButton_->setEnabled(false);
     } else if (isCppMode_) {
         currentHighlighter_ = new CppHighlighter(xmlEditor_->document());
-        rightTabs_->setTabEnabled(0, false); // Details tab off for C++
-        rightTabs_->setTabEnabled(1, false); // Preview tab off for C++
-        rightTabs_->setTabEnabled(2, true);  // Function graph tab on for C++
-        rightTabs_->setCurrentIndex(2);
-        if (parseButton_) parseButton_->setEnabled(false);
-        if (cppParseButton_) cppParseButton_->setEnabled(true);
-        if (pythonParseButton_) pythonParseButton_->setEnabled(false);
-        if (goParseButton_) goParseButton_->setEnabled(false);
-        if (graphButton_) graphButton_->setEnabled(false);
+        parseButton_->setEnabled(true);
     } else if (isPythonMode_) {
         currentHighlighter_ = new PythonHighlighter(xmlEditor_->document());
-        rightTabs_->setTabEnabled(0, false); // Details tab off for Python
-        rightTabs_->setTabEnabled(1, false); // Preview tab off for Python
-        rightTabs_->setTabEnabled(2, true);  // Function graph tab on for Python
-        rightTabs_->setCurrentIndex(2);
-        if (parseButton_) parseButton_->setEnabled(false);
-        if (cppParseButton_) cppParseButton_->setEnabled(false);
-        if (pythonParseButton_) pythonParseButton_->setEnabled(true);
-        if (goParseButton_) goParseButton_->setEnabled(false);
-        if (graphButton_) graphButton_->setEnabled(false);
+        parseButton_->setEnabled(true);
     } else if (isGoMode_) {
         currentHighlighter_ = new GoHighlighter(xmlEditor_->document());
-        rightTabs_->setTabEnabled(0, false); // Details tab off for Go
-        rightTabs_->setTabEnabled(1, false); // Preview tab off for Go
-        rightTabs_->setTabEnabled(2, true);  // Function graph tab on for Go
-        rightTabs_->setCurrentIndex(2);
-        if (parseButton_) parseButton_->setEnabled(false);
-        if (cppParseButton_) cppParseButton_->setEnabled(false);
-        if (pythonParseButton_) pythonParseButton_->setEnabled(false);
-        if (goParseButton_) goParseButton_->setEnabled(true);
-        if (graphButton_) graphButton_->setEnabled(false);
+        parseButton_->setEnabled(true);
     } else {
         currentHighlighter_ = new XmlHighlighter(xmlEditor_->document());
-        rightTabs_->setTabEnabled(0, true);
-        rightTabs_->setTabEnabled(1, false);
-        rightTabs_->setTabEnabled(2, false);
-        rightTabs_->setCurrentIndex(0);
-        if (parseButton_) parseButton_->setEnabled(true);
-        if (cppParseButton_) cppParseButton_->setEnabled(false);
-        if (pythonParseButton_) pythonParseButton_->setEnabled(false);
-        if (goParseButton_) goParseButton_->setEnabled(false);
-        if (graphButton_) graphButton_->setEnabled(false);
+        parseButton_->setEnabled(true);
     }
 }
 
 void MainWindow::renderMarkdownPreview() {
     if (!isMarkdownMode_ || !markdownPreview_) return;
-    // 简化：使用 QTextBrowser 的 setMarkdown（Qt >= 5.14）或手动降级
+    // Simplified: Use QTextBrowser's setMarkdown (Qt >= 5.14) or manual fallback
 #if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
     markdownPreview_->setMarkdown(xmlEditor_->toPlainText());
 #else
-    // Fallback: 基于简单替换（粗体/斜体/标题/代码）转为 HTML
+    // Fallback: Convert to HTML based on simple replacements (bold/italic/headers/code)
     QString md = xmlEditor_->toPlainText();
     QString html = md;
     html.replace(QRegExp("^######\\s+(.*)$"), "<h6>\\1</h6>");
@@ -621,6 +757,7 @@ void MainWindow::parseXml() {
     }
     
     clearDisplay();
+    showAnalysisPanel();
     
     rootNode_ = parser_.parseFile(currentFilePath_);
     
@@ -696,9 +833,26 @@ void MainWindow::about() {
 }
 
 void MainWindow::onTreeItemClicked(QTreeWidgetItem* item, int column) {
+    Q_UNUSED(column)
     if (!item) return;
     
-    // Get the node data from the item
+    // Get the data from the item
+    QVariant itemData = item->data(0, Qt::UserRole);
+    if (itemData.isValid()) {
+        QString filePath = itemData.toString();
+        QFileInfo fileInfo(filePath);
+        
+        // If it's a file, load it in the editor
+        if (fileInfo.isFile()) {
+            loadFileFromPath(filePath);
+        }
+        // If it's a directory, expand/collapse it
+        else if (fileInfo.isDir()) {
+            item->setExpanded(!item->isExpanded());
+        }
+    }
+    
+    // Check if it's an XML node (for XML parsing results)
     QVariant nodeData = item->data(0, Qt::UserRole);
     if (nodeData.isValid()) {
         std::shared_ptr<XmlNode> node = nodeData.value<std::shared_ptr<XmlNode>>();
@@ -834,6 +988,103 @@ void MainWindow::clearDisplay() {
     treeWidget_->clear();
     detailsTextEdit_->clear();
     rootNode_.reset();
+}
+
+void MainWindow::showAnalysisPanel() {
+    // Show the analysis panel if it's hidden
+    if (rightPanel_->isHidden()) {
+        rightPanel_->show();
+        mainSplitter_->setSizes({300, 500, 300});
+    } else if (mainSplitter_->count() == 2) {
+        // Add the analysis panel to the splitter if not already added
+        mainSplitter_->addWidget(rightPanel_);
+        mainSplitter_->setSizes({300, 500, 300});
+    }
+}
+
+void MainWindow::updateLineCount() {
+    if (!xmlEditor_) return;
+    
+    int lineCount = xmlEditor_->document()->blockCount();
+    int charCount = xmlEditor_->toPlainText().length();
+    
+    lineCountLabel_->setText(QString("Lines: %1").arg(lineCount));
+    charCountLabel_->setText(QString("Chars: %1").arg(charCount));
+}
+
+
+void MainWindow::populateProjectTree(const QString& projectPath) {
+    treeWidget_->clear();
+    treeWidget_->setHeaderLabel("Project Structure");
+    
+    QDir projectDir(projectPath);
+    if (!projectDir.exists()) {
+        return;
+    }
+    
+    // Create root item
+    QTreeWidgetItem* rootItem = new QTreeWidgetItem(treeWidget_);
+    rootItem->setText(0, projectDir.dirName());
+    rootItem->setIcon(0, style()->standardIcon(QStyle::SP_DirIcon));
+    rootItem->setData(0, Qt::UserRole, projectPath);
+    
+    // Populate with project files
+    populateProjectTreeRecursive(projectDir, rootItem);
+    
+    // Expand root item
+    rootItem->setExpanded(true);
+}
+
+void MainWindow::populateProjectTreeRecursive(const QDir& dir, QTreeWidgetItem* parentItem) {
+    QStringList filters;
+    filters << "*.cpp" << "*.c" << "*.h" << "*.hpp" << "*.py" << "*.go" << "*.xml" << "*.md" << "*.txt" << "*.json" << "*.yaml" << "*.yml";
+    
+    // Add directories first
+    QFileInfoList dirs = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+    for (const QFileInfo& dirInfo : dirs) {
+        // Skip common build/cache directories
+        if (dirInfo.fileName().startsWith('.') || 
+            dirInfo.fileName() == "build" || 
+            dirInfo.fileName() == "bin" ||
+            dirInfo.fileName() == "obj" ||
+            dirInfo.fileName() == "node_modules") {
+            continue;
+        }
+        
+        QTreeWidgetItem* dirItem = new QTreeWidgetItem(parentItem);
+        dirItem->setText(0, dirInfo.fileName());
+        dirItem->setIcon(0, style()->standardIcon(QStyle::SP_DirIcon));
+        dirItem->setData(0, Qt::UserRole, dirInfo.absoluteFilePath());
+        
+        // Recursively populate subdirectories
+        QDir subDir(dirInfo.absoluteFilePath());
+        populateProjectTreeRecursive(subDir, dirItem);
+    }
+    
+    // Add files
+    QFileInfoList files = dir.entryInfoList(filters, QDir::Files, QDir::Name);
+    for (const QFileInfo& fileInfo : files) {
+        QTreeWidgetItem* fileItem = new QTreeWidgetItem(parentItem);
+        fileItem->setText(0, fileInfo.fileName());
+        
+        // Set appropriate icon based on file type
+        QString suffix = fileInfo.suffix().toLower();
+        if (suffix == "cpp" || suffix == "c" || suffix == "h" || suffix == "hpp") {
+            fileItem->setIcon(0, style()->standardIcon(QStyle::SP_ComputerIcon));
+        } else if (suffix == "py") {
+            fileItem->setIcon(0, style()->standardIcon(QStyle::SP_ComputerIcon));
+        } else if (suffix == "go") {
+            fileItem->setIcon(0, style()->standardIcon(QStyle::SP_ComputerIcon));
+        } else if (suffix == "xml") {
+            fileItem->setIcon(0, style()->standardIcon(QStyle::SP_FileIcon));
+        } else if (suffix == "md") {
+            fileItem->setIcon(0, style()->standardIcon(QStyle::SP_FileIcon));
+        } else {
+            fileItem->setIcon(0, style()->standardIcon(QStyle::SP_FileIcon));
+        }
+        
+        fileItem->setData(0, Qt::UserRole, fileInfo.absoluteFilePath());
+    }
 }
 
 void MainWindow::exportToJson() {
@@ -1035,15 +1286,16 @@ void MainWindow::performReplace() {
         QString content = xmlEditor_->toPlainText();
         
         if (searchDialog_->isRegex()) {
-            // 实现正则表达式替换
+            // Implement regex replacement
             QRegExp regex(searchText);
             if (regex.isValid()) {
                 Qt::CaseSensitivity caseSensitivity = searchDialog_->isCaseSensitive() ? 
                     Qt::CaseSensitive : Qt::CaseInsensitive;
                 regex.setCaseSensitivity(caseSensitivity);
                 
-                int count = 0;
-                content.replace(regex, replaceText, &count);
+                QString originalContent = content;
+                content.replace(regex, replaceText);
+                int count = (originalContent.length() - content.length()) / (searchText.length() - replaceText.length());
                 if (count > 0) {
                     xmlEditor_->setPlainText(content);
                     statusBar()->showMessage(QString("Replaced %1 occurrences using regex").arg(count));
@@ -1220,71 +1472,85 @@ void MainWindow::saveXmlContent() {
 
 void MainWindow::parseCpp() {
     if (currentFilePath_.empty()) {
-        QMessageBox::warning(this, "Warning", "请先打开一个C++文件");
+        QMessageBox::warning(this, "Warning", "Please open a C++ file first");
         return;
     }
     
-    // 显示进度条
+    showAnalysisPanel();
+    
+    // Show progress bar
     progressBar_->setVisible(true);
-    progressBar_->setRange(0, 0); // 不确定进度
-    statusBar()->showMessage("正在解析C++文件...");
-    QApplication::processEvents(); // 更新UI
+    progressBar_->setRange(0, 0); // Indeterminate progress
+    statusBar()->showMessage("Parsing C++ file...");
+    QApplication::processEvents(); // Update UI
     
     QString content = xmlEditor_->toPlainText();
     std::string cppContent = content.toStdString();
     
-    // 检查文件大小，大文件给出提示
+    // Check file size, show prompt for large files
     if (cppContent.length() > 100000) { // 100KB
         progressBar_->setRange(0, 100);
         progressBar_->setValue(50);
-        statusBar()->showMessage("正在解析大型C++文件，请稍候...");
+        statusBar()->showMessage("Parsing large C++ file, please wait...");
         QApplication::processEvents();
     }
     
     if (cppParser_.parseFile(cppContent)) {
         progressBar_->setValue(100);
-        statusBar()->showMessage("C++ 文件解析成功");
-        graphButton_->setEnabled(true);
+        statusBar()->showMessage("C++ file parsed successfully");
         
-        // 显示解析统计信息
+        // Show parsing statistics in analysis panel
         const auto& functions = cppParser_.getFunctions();
         const auto& classes = cppParser_.getClasses();
-        QString info = QString("解析完成：发现 %1 个函数，%2 个类")
+        QString info = QString("<h3>C++ Analysis Results</h3>"
+                              "<p><b>Functions found:</b> %1</p>"
+                              "<p><b>Classes found:</b> %2</p>"
+                              "<p>Click 'Generate Function Graph' to visualize the code structure.</p>")
                       .arg(functions.size())
                       .arg(classes.size());
-        QMessageBox::information(this, "解析结果", info);
+        detailsTextEdit_->setHtml(info);
+        rightTabs_->setCurrentIndex(0); // Show details tab
+        
+        // Enable function graph generation
+        parseButton_->setEnabled(true);
     } else {
-        QMessageBox::critical(this, "Error", "C++ 文件解析失败");
-        graphButton_->setEnabled(false);
+        QMessageBox::critical(this, "Error", "C++ file parsing failed");
     }
     
-    // 隐藏进度条
+    // Hide progress bar
     progressBar_->setVisible(false);
 }
 
 void MainWindow::parsePython() {
     if (currentFilePath_.empty()) {
-        QMessageBox::warning(this, "Warning", "请先打开一个Python文件");
+        QMessageBox::warning(this, "Warning", "Please open a Python file first");
         return;
     }
+    
+    showAnalysisPanel();
     
     QString content = xmlEditor_->toPlainText();
     std::string pythonContent = content.toStdString();
     
     if (pythonParser_.parseFile(pythonContent)) {
-        statusBar()->showMessage("Python 文件解析成功");
-        graphButton_->setEnabled(true);
+        statusBar()->showMessage("Python file parsed successfully");
         
-        // 显示解析统计信息
+        // Show parsing statistics in analysis panel
         const auto& functions = pythonParser_.getFunctions();
         const auto& classes = pythonParser_.getClasses();
-        QString info = QString("解析完成：发现 %1 个函数，%2 个类")
+        QString info = QString("<h3>Python Analysis Results</h3>"
+                              "<p><b>Functions found:</b> %1</p>"
+                              "<p><b>Classes found:</b> %2</p>"
+                              "<p>Click 'Generate Function Graph' to visualize the code structure.</p>")
                       .arg(functions.size())
                       .arg(classes.size());
-        QMessageBox::information(this, "解析结果", info);
+        detailsTextEdit_->setHtml(info);
+        rightTabs_->setCurrentIndex(0); // Show details tab
+        
+        // Enable function graph generation
+        parseButton_->setEnabled(true);
     } else {
-        QMessageBox::critical(this, "Error", "Python 文件解析失败");
-        graphButton_->setEnabled(false);
+        QMessageBox::critical(this, "Error", "Python file parsing failed");
     }
 }
 
@@ -1292,19 +1558,19 @@ void MainWindow::generateFunctionGraph() {
     bool hasFunctions = false;
     
     if (isCppMode_ && !cppParser_.getFunctions().empty()) {
-        // 设置C++解析数据到图形视图
+        // Set C++ parsing data to graph view
         functionGraphView_->setParserData(cppParser_);
         hasFunctions = true;
     } else if (isPythonMode_ && !pythonParser_.getFunctions().empty()) {
-        // 需要创建一个转换函数将Python数据转换为C++数据格式
-        // 或者修改FunctionGraphView以支持多种解析器类型
-        // 为了简化，我们暂时使用适配器模式
+        // Need to create a conversion function to convert Python data to C++ data format
+        // Or modify FunctionGraphView to support multiple parser types
+        // For simplicity, we temporarily use adapter pattern
         CppParser adaptedParser;
         adaptPythonToCppParser(adaptedParser);
         functionGraphView_->setParserData(adaptedParser);
         hasFunctions = true;
     } else if (isGoMode_ && !goParser_.getFunctions().empty()) {
-        // 将Go解析数据转换为C++数据格式
+        // Convert Go parsing data to C++ data format
         CppParser adaptedParser;
         adaptGoToCppParser(adaptedParser);
         functionGraphView_->setParserData(adaptedParser);
@@ -1312,64 +1578,75 @@ void MainWindow::generateFunctionGraph() {
     }
     
     if (!hasFunctions) {
-        QMessageBox::warning(this, "Warning", "请先解析代码文件");
+        QMessageBox::warning(this, "Warning", "Please parse code file first");
         return;
     }
     
-    // 生成函数关系图
+    // Show analysis panel if not already shown
+    showAnalysisPanel();
+    
+    // Generate function relationship graph
     functionGraphView_->generateGraph();
     
-    // 切换到函数关系图标签页
+    // Switch to function graph tab
     rightTabs_->setCurrentIndex(2);
     
-    statusBar()->showMessage("函数关系图生成完成");
+    statusBar()->showMessage("Function graph generation completed");
 }
 
 void MainWindow::parseGo() {
     if (currentFilePath_.empty()) {
-        QMessageBox::warning(this, "Warning", "请先打开一个Go文件");
+        QMessageBox::warning(this, "Warning", "Please open a Go file first");
         return;
     }
+    
+    showAnalysisPanel();
     
     QString content = xmlEditor_->toPlainText();
     std::string goContent = content.toStdString();
     
     if (goParser_.parseFile(goContent)) {
-        statusBar()->showMessage("Go 文件解析成功");
-        graphButton_->setEnabled(true);
+        statusBar()->showMessage("Go file parsed successfully");
         
-        // 显示解析统计信息
+        // Show parsing statistics in analysis panel
         const auto& functions = goParser_.getFunctions();
         const auto& structs = goParser_.getStructs();
         const auto& interfaces = goParser_.getInterfaces();
-        QString info = QString("解析完成：发现 %1 个函数，%2 个结构体，%3 个接口")
+        QString info = QString("<h3>Go Analysis Results</h3>"
+                              "<p><b>Functions found:</b> %1</p>"
+                              "<p><b>Structs found:</b> %2</p>"
+                              "<p><b>Interfaces found:</b> %3</p>"
+                              "<p>Click 'Generate Function Graph' to visualize the code structure.</p>")
                       .arg(functions.size())
                       .arg(structs.size())
                       .arg(interfaces.size());
-        QMessageBox::information(this, "解析结果", info);
+        detailsTextEdit_->setHtml(info);
+        rightTabs_->setCurrentIndex(0); // Show details tab
+        
+        // Enable function graph generation
+        parseButton_->setEnabled(true);
     } else {
-        QMessageBox::critical(this, "Error", "Go 文件解析失败");
-        graphButton_->setEnabled(false);
+        QMessageBox::critical(this, "Error", "Go file parsing failed");
     }
 }
 
 void MainWindow::adaptPythonToCppParser(CppParser& cppParser) {
-    // 清空目标解析器
+    // Clear target parser
     cppParser.clear();
     
-    // 将Python函数转换为C++函数格式
+    // Convert Python functions to C++ function format
     const auto& pythonFunctions = pythonParser_.getFunctions();
     const auto& pythonClasses = pythonParser_.getClasses();
     const auto& pythonCalls = pythonParser_.getFunctionCalls();
     
-    // 这是一个简化的适配器实现
-    // 在实际应用中，您可能需要修改FunctionGraphView以支持泛型解析器接口
+    // This is a simplified adapter implementation
+    // In actual applications, you may need to modify FunctionGraphView to support generic parser interface
     
-    // 由于CppParser的内部数据是私有的，我们需要通过解析来填充数据
-    // 这里我们构造一个临时的C++代码字符串来模拟转换
+    // Since CppParser's internal data is private, we need to populate data through parsing
+    // Here we construct a temporary C++ code string to simulate conversion
     std::string adaptedCppCode;
     
-    // 转换类定义
+    // Convert class definitions
     for (const auto& pythonClass : pythonClasses) {
         adaptedCppCode += "class " + pythonClass.name;
         if (!pythonClass.baseClasses.empty()) {
@@ -1377,7 +1654,7 @@ void MainWindow::adaptPythonToCppParser(CppParser& cppParser) {
         }
         adaptedCppCode += " {\npublic:\n";
         
-        // 转换类的方法
+        // Convert class methods
         for (const auto& method : pythonClass.methods) {
             adaptedCppCode += "    void " + method.name + "(";
             for (size_t i = 0; i < method.parameters.size(); ++i) {
@@ -1386,7 +1663,7 @@ void MainWindow::adaptPythonToCppParser(CppParser& cppParser) {
             }
             adaptedCppCode += ") {\n";
             
-            // 添加函数调用
+            // Add function calls
             auto it = pythonCalls.find(method.name);
             if (it != pythonCalls.end()) {
                 for (const std::string& calledFunc : it->second) {
@@ -1399,9 +1676,9 @@ void MainWindow::adaptPythonToCppParser(CppParser& cppParser) {
         adaptedCppCode += "};\n\n";
     }
     
-    // 转换独立函数
+    // Convert independent functions
     for (const auto& pythonFunc : pythonFunctions) {
-        if (pythonFunc.className.empty()) { // 只处理独立函数
+        if (pythonFunc.className.empty()) { // Only handle independent functions
             adaptedCppCode += "void " + pythonFunc.name + "(";
             for (size_t i = 0; i < pythonFunc.parameters.size(); ++i) {
                 if (i > 0) adaptedCppCode += ", ";
@@ -1409,7 +1686,7 @@ void MainWindow::adaptPythonToCppParser(CppParser& cppParser) {
             }
             adaptedCppCode += ") {\n";
             
-            // 添加函数调用
+            // Add function calls
             auto it = pythonCalls.find(pythonFunc.name);
             if (it != pythonCalls.end()) {
                 for (const std::string& calledFunc : it->second) {
@@ -1421,27 +1698,27 @@ void MainWindow::adaptPythonToCppParser(CppParser& cppParser) {
         }
     }
     
-    // 解析适配后的代码
+    // Parse adapted code
     cppParser.parseFile(adaptedCppCode);
 }
 
 void MainWindow::adaptGoToCppParser(CppParser& cppParser) {
-    // 清空目标解析器
+    // Clear target parser
     cppParser.clear();
     
-    // 将Go函数转换为C++函数格式
+    // Convert Go functions to C++ function format
     const auto& goFunctions = goParser_.getFunctions();
     const auto& goStructs = goParser_.getStructs();
     const auto& goCalls = goParser_.getFunctionCalls();
     
-    // 构造一个临时的C++代码字符串来模拟转换
+    // Construct a temporary C++ code string to simulate conversion
     std::string adaptedCppCode;
     
-    // 转换结构体定义
+    // Convert struct definitions
     for (const auto& goStruct : goStructs) {
         adaptedCppCode += "class " + goStruct.name + " {\npublic:\n";
         
-        // 转换结构体字段
+        // Convert struct fields
         for (const auto& field : goStruct.fields) {
             adaptedCppCode += "    int " + field + ";\n";
         }
@@ -1449,21 +1726,21 @@ void MainWindow::adaptGoToCppParser(CppParser& cppParser) {
         adaptedCppCode += "};\n\n";
     }
     
-    // 转换函数定义
+    // Convert function definitions
     for (const auto& goFunc : goFunctions) {
-        // 处理返回类型（Go可以有多个返回值）
+        // Handle return types (Go can have multiple return values)
         std::string returnType = "void";
         if (!goFunc.returnTypes.empty()) {
-            returnType = goFunc.returnTypes[0]; // 简化处理，只取第一个返回类型
-            // 将Go类型映射到C++类型
+            returnType = goFunc.returnTypes[0]; // Simplified handling, only take first return type
+            // Map Go types to C++ types
             if (returnType == "string") returnType = "std::string";
             else if (returnType == "int") returnType = "int";
             else if (returnType == "bool") returnType = "bool";
             else if (returnType == "float64") returnType = "double";
-            else returnType = "int"; // 默认类型
+            else returnType = "int"; // Default type
         }
         
-        // 处理方法（有接收者）
+        // Handle methods (with receiver)
         if (goFunc.isMethod) {
             adaptedCppCode += "class " + goFunc.receiverType + " {\npublic:\n";
             adaptedCppCode += "    " + returnType + " " + goFunc.name + "(";
@@ -1471,24 +1748,24 @@ void MainWindow::adaptGoToCppParser(CppParser& cppParser) {
             adaptedCppCode += returnType + " " + goFunc.name + "(";
         }
         
-        // 转换参数
+        // Convert parameters
         for (size_t i = 0; i < goFunc.parameters.size(); ++i) {
             if (i > 0) adaptedCppCode += ", ";
             
             std::string paramType = goFunc.parameters[i].type;
-            // 简单的类型映射
+            // Simple type mapping
             if (paramType == "string") paramType = "std::string";
             else if (paramType == "int") paramType = "int";
             else if (paramType == "bool") paramType = "bool";
             else if (paramType == "float64") paramType = "double";
-            else paramType = "int"; // 默认类型
+            else paramType = "int"; // Default type
             
             adaptedCppCode += paramType + " " + goFunc.parameters[i].name;
         }
         
         adaptedCppCode += ") {\n";
         
-        // 添加函数调用
+        // Add function calls
         auto it = goCalls.find(goFunc.name);
         if (it != goCalls.end()) {
             for (const std::string& calledFunc : it->second) {
@@ -1503,19 +1780,19 @@ void MainWindow::adaptGoToCppParser(CppParser& cppParser) {
         }
     }
     
-    // 解析适配后的代码
+    // Parse adapted code
     cppParser.parseFile(adaptedCppCode);
 }
 
 void MainWindow::loadFileFromPath(const QString& filePath) {
-    // 设置当前文件路径
+    // Set current file path
     currentFilePath_ = filePath.toStdString();
     
-    // 更新文件标签
+    // Update file label
     QFileInfo fileInfo(filePath);
     fileLabel_->setText(fileInfo.fileName());
     
-    // 读取文件内容
+    // Read file content
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         QMessageBox::critical(this, "Error", 
@@ -1527,31 +1804,25 @@ void MainWindow::loadFileFromPath(const QString& filePath) {
     QString content = in.readAll();
     file.close();
     
-    // 设置编辑器内容
+    // Set editor content
     xmlEditor_->setPlainText(content);
     
-    // 根据文件扩展名设置模式
+    // Set mode based on file extension
     QString extension = fileInfo.suffix().toLower();
     isMarkdownMode_ = (extension == "md" || extension == "markdown");
     isCppMode_ = (extension == "cpp" || extension == "cxx" || extension == "cc" || extension == "c");
     isPythonMode_ = (extension == "py");
     isGoMode_ = (extension == "go");
     
-    // 应用语法高亮
+    // Apply syntax highlighting
     applyHighlighterForCurrentFile();
     
-    // 启用相应的解析按钮
-    if (isCppMode_) {
-        cppParseButton_->setEnabled(true);
-    } else if (isPythonMode_) {
-        pythonParseButton_->setEnabled(true);
-    } else if (isGoMode_) {
-        goParseButton_->setEnabled(true);
-    } else if (!isMarkdownMode_) {
+    // Enable parse button for supported file types
+    if (!isMarkdownMode_) {
         parseButton_->setEnabled(true);
     }
     
-    // 如果是Markdown文件，渲染预览
+    // If it's a Markdown file, render preview
     if (isMarkdownMode_) {
         renderMarkdownPreview();
     }
@@ -1563,7 +1834,7 @@ void MainWindow::toggleTheme() {
     isDarkTheme_ = !isDarkTheme_;
     
     if (isDarkTheme_) {
-        // 应用深色主题
+        // Apply dark theme
         QPalette darkPalette;
         darkPalette.setColor(QPalette::Window, QColor(53, 53, 53));
         darkPalette.setColor(QPalette::WindowText, QColor(255, 255, 255));
@@ -1579,9 +1850,9 @@ void MainWindow::toggleTheme() {
         darkPalette.setColor(QPalette::Highlight, QColor(42, 130, 218));
         darkPalette.setColor(QPalette::HighlightedText, QColor(255, 255, 255));
         QApplication::setPalette(darkPalette);
-        statusBar()->showMessage("已切换到深色主题");
+        statusBar()->showMessage("Switched to dark theme");
     } else {
-        // 应用浅色主题
+        // Apply light theme
         QPalette lightPalette;
         lightPalette.setColor(QPalette::Window, QColor(240, 240, 240));
         lightPalette.setColor(QPalette::WindowText, QColor(0, 0, 0));
@@ -1597,9 +1868,9 @@ void MainWindow::toggleTheme() {
         lightPalette.setColor(QPalette::Highlight, QColor(0, 102, 204));
         lightPalette.setColor(QPalette::HighlightedText, QColor(255, 255, 255));
         QApplication::setPalette(lightPalette);
-        statusBar()->showMessage("已切换到浅色主题");
+        statusBar()->showMessage("Switched to light theme");
     }
     
-    // 重新应用语法高亮以适配新主题
+    // Reapply syntax highlighting to adapt to new theme
     applyHighlighterForCurrentFile();
 } 

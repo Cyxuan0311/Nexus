@@ -131,7 +131,7 @@ void PythonParser::parseFunctionCalls(const std::string& content) {
             // If we've reached a line with same or less indentation than function definition,
             // we're no longer in the function (unless it's a blank/comment line)
             if (lineIndent <= currentIndent && !isBlankOrComment(line) && 
-                !functionPattern_.indexIn(qline) != -1 && !asyncFunctionPattern_.indexIn(qline) != -1) {
+                functionPattern_.indexIn(qline) == -1 && asyncFunctionPattern_.indexIn(qline) == -1) {
                 currentFunction.clear();
                 currentIndent = -1;
                 continue;
