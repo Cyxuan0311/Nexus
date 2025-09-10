@@ -12,8 +12,8 @@
 [![Qt](https://img.shields.io/badge/Qt-5.12+-green.svg?style=flat&logo=qt)](https://www.qt.io/)
 [![CMake](https://img.shields.io/badge/CMake-3.16+-red.svg?style=flat&logo=cmake)](https://cmake.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat)](LICENSE)
-[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg?style=flat)](https://github.com/yourusername/Nexus)
-[![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen.svg?style=flat)](https://github.com/yourusername/Nexus)
+[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg?style=flat)](https://github.com/frames/Nexus)
+[![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen.svg?style=flat)](https://github.com/frames/Nexus)
 
 A Qt-based multi-format code editor, parser and visualizer with a VSCode-like interface, supporting XML, Markdown, C++, Python, and Go files. Built with C++17, Qt5, and CMake.
 
@@ -48,10 +48,24 @@ A Qt-based multi-format code editor, parser and visualizer with a VSCode-like in
 
 ## Screenshots
 
-The application features a split-pane interface:
-- **Left Panel**: File controls and structure tree view (XML) or function analysis controls (C++)
-- **Center Panel**: Code editor with syntax highlighting
-- **Right Panel**: Multiple tabs for details, preview, and function relationship visualization
+### Main Interface Demo
+
+![Nexus Application Demo](image/image.png)
+
+*Nexus - Multi-Purpose Code Editor & Visualizer in action*
+
+The application features a modern, VSCode-like interface with:
+- **Left Panel**: File browser and project structure tree view
+- **Center Panel**: Code editor with syntax highlighting and line numbers
+- **Right Panel**: Analysis results and function graph visualization (shown when parsing code)
+- **Status Bar**: Real-time line count and character count statistics
+
+### Key Features Shown:
+- **Project Structure Browser**: Navigate through project files and folders
+- **Syntax Highlighting**: Full support for C++, Python, Go, XML, and Markdown
+- **Line Numbers**: VSCode-style line numbering for better code navigation
+- **File Operations**: Open files, edit content, and save changes
+- **Code Analysis**: Parse and visualize code structure and function relationships
 
 ## 🛠️ Tech Stack
 
@@ -320,6 +334,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Context-aware Interface**: UI adapts based on file type for optimal workflow
 - **Real-time Analysis**: Instant parsing and visualization of C++, Python, and Go code structure
 - **Cross-language Support**: Unified function graph visualization for C++, Python, and Go
+- **VSCode-like Interface**: Modern, clean design with line numbers and syntax highlighting
+- **Project Browser**: Open entire project folders and navigate through file structures
+- **Real-time Statistics**: Live line count and character count in status bar
+- **Optimized Layout**: Streamlined two-panel design with on-demand analysis panels
 
 ## 🙏 Acknowledgments
 
