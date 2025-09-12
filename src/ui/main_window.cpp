@@ -52,7 +52,7 @@ public:
 
     void lineNumberAreaPaintEvent(QPaintEvent* event) {
         QPainter painter(lineNumberArea_);
-        painter.fillRect(event->rect(), QColor(45, 45, 45));
+        painter.fillRect(event->rect(), QColor(30, 30, 30));
 
         QTextBlock block = firstVisibleBlock();
         int blockNumber = block.blockNumber();
@@ -62,7 +62,8 @@ public:
         while (block.isValid() && top <= event->rect().bottom()) {
             if (block.isVisible() && bottom >= event->rect().top()) {
                 QString number = QString::number(blockNumber + 1);
-                painter.setPen(QColor(150, 150, 150));
+                painter.setPen(QColor(106, 106, 106));
+                painter.setFont(QFont("Cascadia Code", 13));
                 painter.drawText(0, top, lineNumberArea_->width(), fontMetrics().height(),
                                Qt::AlignRight, number);
             }
@@ -159,77 +160,56 @@ MainWindow::~MainWindow() {
 }
 
 void MainWindow::setupUi() {
-    // Create main splitter - only two panels now
+    // Create main splitter with improved flexibility
     mainSplitter_ = new QSplitter(Qt::Horizontal, this);
+    mainSplitter_->setChildrenCollapsible(false);  // 防止面板完全折叠
+    mainSplitter_->setHandleWidth(8);  // 增加分割条宽度，便于拖拽
+    mainSplitter_->setStyleSheet(
+        "QSplitter::handle {"
+        "    background-color: #2D2D30;"
+        "    border: none;"
+        "    margin: 1px;"
+        "    width: 1px;"
+        "}"
+        "QSplitter::handle:hover {"
+        "    background-color: #007ACC;"
+        "    width: 3px;"
+        "}"
+        "QSplitter::handle:pressed {"
+        "    background-color: #005A9E;"
+        "    width: 3px;"
+        "}"
+    );
     setCentralWidget(mainSplitter_);
     
     // Left panel - File browser and controls
     leftPanel_ = new QWidget();
+    leftPanel_->setObjectName("leftPanel");
     QVBoxLayout* leftLayout = new QVBoxLayout(leftPanel_);
     leftLayout->setContentsMargins(8, 8, 8, 8);
     leftLayout->setSpacing(8);
     
-    // Top controls with icons
-    QHBoxLayout* topControlsLayout = new QHBoxLayout();
+    // 简化的顶部控制区域 - 参考VSCode设计
+    QHBoxLayout* topInfoLayout = new QHBoxLayout();
+    topInfoLayout->setContentsMargins(0, 0, 0, 0);
+    topInfoLayout->setSpacing(8);
     
-    // Open file button with icon
-    openButton_ = new QPushButton();
-    openButton_->setIcon(style()->standardIcon(QStyle::SP_DirOpenIcon));
-    openButton_->setText("Open File");
-    openButton_->setToolTip("Open a file to edit");
-    openButton_->setIconSize(QSize(16, 16));
+    // 文件状态指示器 - 更简约
+    QLabel* statusIcon = new QLabel();
+    statusIcon->setPixmap(style()->standardIcon(QStyle::SP_FileIcon).pixmap(14, 14));
+    statusIcon->setToolTip("File Status");
+    statusIcon->setStyleSheet("QLabel { margin: 2px; }");
     
-    // Open project folder button
-    openProjectButton_ = new QPushButton();
-    openProjectButton_->setIcon(style()->standardIcon(QStyle::SP_DirIcon));
-    openProjectButton_->setText("Open Project");
-    openProjectButton_->setToolTip("Open a project folder");
-    openProjectButton_->setIconSize(QSize(16, 16));
+    topInfoLayout->addWidget(statusIcon);
+    topInfoLayout->addStretch();
     
-    // Parse dropdown menu
-    QMenu* parseMenu = new QMenu();
-    parseMenu->addAction(style()->standardIcon(QStyle::SP_FileIcon), "Parse XML", this, &MainWindow::parseXml);
-    parseMenu->addAction(style()->standardIcon(QStyle::SP_ComputerIcon), "Parse C++", this, &MainWindow::parseCpp);
-    parseMenu->addAction(style()->standardIcon(QStyle::SP_ComputerIcon), "Parse Python", this, &MainWindow::parsePython);
-    parseMenu->addAction(style()->standardIcon(QStyle::SP_ComputerIcon), "Parse Go", this, &MainWindow::parseGo);
-    parseMenu->addSeparator();
-    parseMenu->addAction(style()->standardIcon(QStyle::SP_FileDialogDetailedView), "Generate Function Graph", this, &MainWindow::generateFunctionGraph);
+    leftLayout->addLayout(topInfoLayout);
     
-    parseButton_ = new QPushButton();
-    parseButton_->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
-    parseButton_->setText("Parse");
-    parseButton_->setMenu(parseMenu);
-    parseButton_->setEnabled(false);
-    parseButton_->setToolTip("Parse and analyze code");
-    parseButton_->setIconSize(QSize(16, 16));
-    
-    // Edit controls
-    editButton_ = new QPushButton();
-    editButton_->setIcon(style()->standardIcon(QStyle::SP_FileDialogDetailedView));
-    editButton_->setText("Edit");
-    editButton_->setToolTip("Edit file content");
-    editButton_->setIconSize(QSize(16, 16));
-    
-    saveButton_ = new QPushButton();
-    saveButton_->setIcon(style()->standardIcon(QStyle::SP_DialogSaveButton));
-    saveButton_->setText("Save");
-    saveButton_->setEnabled(false);
-    saveButton_->setToolTip("Save changes");
-    saveButton_->setIconSize(QSize(16, 16));
-    
-    topControlsLayout->addWidget(openButton_);
-    topControlsLayout->addWidget(openProjectButton_);
-    topControlsLayout->addWidget(parseButton_);
-    topControlsLayout->addWidget(editButton_);
-    topControlsLayout->addWidget(saveButton_);
-    topControlsLayout->addStretch();
-    
-    leftLayout->addLayout(topControlsLayout);
-    
-    // File info
+    // File info - 更简约的设计
     fileLabel_ = new QLabel("No file selected");
-    fileLabel_->setStyleSheet("color: #4EC9B0; font-weight: bold; padding: 4px;");
+    fileLabel_->setStyleSheet("color: #CCCCCC; font-weight: 500; font-size: 13px; padding: 6px; background-color: #2D2D30; border-radius: 4px;");
     fileLabel_->setWordWrap(true);
+    fileLabel_->setAlignment(Qt::AlignCenter);
     leftLayout->addWidget(fileLabel_);
     
     // Tree widget for file structure/analysis results
@@ -245,12 +225,12 @@ void MainWindow::setupUi() {
     centerLayout->setContentsMargins(8, 8, 8, 8);
     centerLayout->setSpacing(8);
     
-    // Editor with line numbers
+    // Editor with line numbers - 参考VSCode设计
     xmlEditor_ = new EnhancedFoldingTextEdit();
     xmlEditor_->setReadOnly(true);
-    xmlEditor_->setFont(QFont("Consolas", 12));
+    xmlEditor_->setFont(QFont("Cascadia Code", 14));
     xmlEditor_->setLineWrapMode(QPlainTextEdit::NoWrap);
-    xmlEditor_->setStyleSheet("QPlainTextEdit { border: 1px solid #3E3E42; border-radius: 4px; }");
+    xmlEditor_->setStyleSheet("QPlainTextEdit { border: none; background-color: #1E1E1E; }");
     
     // Set proper margins and tab settings
 #if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
@@ -267,7 +247,11 @@ void MainWindow::setupUi() {
     // Add panels to splitter - only two panels now
     mainSplitter_->addWidget(leftPanel_);
     mainSplitter_->addWidget(centerPanel_);
-    mainSplitter_->setSizes({350, 650});
+    
+    // Set initial sizes with better proportions
+    mainSplitter_->setSizes({300, 700});
+    mainSplitter_->setStretchFactor(0, 0);  // 左侧面板不拉伸
+    mainSplitter_->setStretchFactor(1, 1);  // 右侧面板可拉伸
     
     // Initialize hidden panels for analysis results
     rightPanel_ = new QWidget();
@@ -278,20 +262,24 @@ void MainWindow::setupUi() {
     
     QWidget* detailsTab = new QWidget();
     QVBoxLayout* detailsLayout = new QVBoxLayout(detailsTab);
+    detailsLayout->setContentsMargins(8, 8, 8, 8);
     QLabel* detailsLabel = new QLabel("Analysis Results");
-    detailsLabel->setStyleSheet("color: #4EC9B0; font-weight: bold; font-size: 14px;");
+    detailsLabel->setStyleSheet("color: #CCCCCC; font-weight: 600; font-size: 13px; padding: 4px;");
     detailsTextEdit_ = new QTextEdit();
     detailsTextEdit_->setReadOnly(true);
+    detailsTextEdit_->setStyleSheet("QTextEdit { background-color: #1E1E1E; border: none; color: #D4D4D4; font-family: 'Cascadia Code', monospace; }");
     detailsLayout->addWidget(detailsLabel);
     detailsLayout->addWidget(detailsTextEdit_);
     rightTabs_->addTab(detailsTab, "Details");
     
     QWidget* previewTab = new QWidget();
     QVBoxLayout* previewLayout = new QVBoxLayout(previewTab);
+    previewLayout->setContentsMargins(8, 8, 8, 8);
     QLabel* previewLabel = new QLabel("Preview");
-    previewLabel->setStyleSheet("color: #4EC9B0; font-weight: bold; font-size: 14px;");
+    previewLabel->setStyleSheet("color: #CCCCCC; font-weight: 600; font-size: 13px; padding: 4px;");
     markdownPreview_ = new QTextBrowser();
     markdownPreview_->setOpenExternalLinks(true);
+    markdownPreview_->setStyleSheet("QTextBrowser { background-color: #1E1E1E; border: none; color: #D4D4D4; }");
     previewLayout->addWidget(previewLabel);
     previewLayout->addWidget(markdownPreview_);
     rightTabs_->addTab(previewTab, "Preview");
@@ -303,10 +291,6 @@ void MainWindow::setupUi() {
     rightLayout->addWidget(rightTabs_);
     
     // Connect signals
-    connect(openButton_, &QPushButton::clicked, this, &MainWindow::openFile);
-    connect(openProjectButton_, &QPushButton::clicked, this, &MainWindow::openProject);
-    connect(editButton_, &QPushButton::clicked, this, &MainWindow::toggleEditMode);
-    connect(saveButton_, &QPushButton::clicked, this, &MainWindow::saveXmlContent);
     connect(treeWidget_, &QTreeWidget::itemClicked, this, &MainWindow::onTreeItemClicked);
     connect(xmlEditor_, &QPlainTextEdit::textChanged, this, &MainWindow::renderMarkdownPreview);
     connect(xmlEditor_, &QPlainTextEdit::textChanged, this, &MainWindow::updateLineCount);
@@ -403,47 +387,72 @@ void MainWindow::setupMenuBar() {
 
 void MainWindow::setupToolBar() {
     QToolBar* toolBar = addToolBar("Main Toolbar");
+    toolBar->setMovable(false);
+    toolBar->setFloatable(false);
+    toolBar->setToolButtonStyle(Qt::ToolButtonIconOnly);  // 只显示图标，更简约
+    toolBar->setIconSize(QSize(20, 20));  // 设置图标大小
+    
+    // 文件操作组 - 核心功能
     toolBar->addAction(openAction_);
     toolBar->addAction(saveAction_);
     toolBar->addSeparator();
+    
+    // 项目操作组
+    openProjectAction_ = new QAction(style()->standardIcon(QStyle::SP_DirIcon), "Open Project", this);
+    connect(openProjectAction_, &QAction::triggered, this, &MainWindow::openProject);
+    toolBar->addAction(openProjectAction_);
+    toolBar->addSeparator();
+    
+    // 编辑操作组
+    editAction_ = new QAction(style()->standardIcon(QStyle::SP_FileDialogDetailedView), "Edit", this);
+    connect(editAction_, &QAction::triggered, this, &MainWindow::toggleEditMode);
+    toolBar->addAction(editAction_);
+    toolBar->addSeparator();
+    
+    // 解析操作组 - 简化设计
+    QMenu* parseMenu = new QMenu();
+    parseMenu->addAction("Parse XML", this, &MainWindow::parseXml);
+    parseMenu->addAction("Parse C++", this, &MainWindow::parseCpp);
+    parseMenu->addAction("Parse Python", this, &MainWindow::parsePython);
+    parseMenu->addAction("Parse Go", this, &MainWindow::parseGo);
+    parseMenu->addSeparator();
+    parseMenu->addAction("Generate Function Graph", this, &MainWindow::generateFunctionGraph);
+    
+    parseButton_ = new QToolButton();
+    parseButton_->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
+    parseButton_->setMenu(parseMenu);
+    parseButton_->setPopupMode(QToolButton::InstantPopup);
+    parseButton_->setEnabled(false);
+    parseButton_->setToolTip("Parse Code");
     toolBar->addWidget(parseButton_);
     toolBar->addSeparator();
     
-    // Add export actions to toolbar
-    QMenu* exportMenu = new QMenu();
-    exportMenu->addAction(exportJsonAction_);
-    exportMenu->addAction(exportYamlAction_);
-    exportMenu->addAction(exportCsvAction_);
-    
-    QToolButton* exportButton = new QToolButton();
-    exportButton->setText("Export");
-    exportButton->setMenu(exportMenu);
-    exportButton->setPopupMode(QToolButton::InstantPopup);
-    toolBar->addWidget(exportButton);
-    toolBar->addSeparator();
+    // 搜索功能
     toolBar->addAction(searchAction_);
     toolBar->addSeparator();
-    toolBar->addAction(foldAllAction_);
-    toolBar->addAction(unfoldAllAction_);
+    
+    // 主题切换
+    toolBar->addAction(toggleThemeAction_);
 }
 
 void MainWindow::setupStatusBar() {
     statusBar()->showMessage("Ready");
     
-    // Add progress bar
+    // Add progress bar - 更简约的设计
     progressBar_ = new QProgressBar();
     progressBar_->setVisible(false);
-    progressBar_->setMaximumWidth(200);
+    progressBar_->setMaximumWidth(150);
+    progressBar_->setStyleSheet("QProgressBar { height: 16px; }");
     statusBar()->addPermanentWidget(progressBar_);
     
-    // Add line count label
+    // Add line count label - 参考VSCode设计
     lineCountLabel_ = new QLabel("Lines: 0");
-    lineCountLabel_->setStyleSheet("color: #CCCCCC; font-weight: bold;");
+    lineCountLabel_->setStyleSheet("color: #CCCCCC; font-weight: 500; font-size: 12px; padding: 2px 8px;");
     statusBar()->addPermanentWidget(lineCountLabel_);
     
     // Add character count label
     charCountLabel_ = new QLabel("Chars: 0");
-    charCountLabel_->setStyleSheet("color: #CCCCCC; font-weight: bold;");
+    charCountLabel_->setStyleSheet("color: #CCCCCC; font-weight: 500; font-size: 12px; padding: 2px 8px;");
     statusBar()->addPermanentWidget(charCountLabel_);
 }
 
@@ -451,121 +460,178 @@ void MainWindow::setupStyle() {
     // Set application style
     QApplication::setStyle("Fusion");
     
-    // Create dark palette
+    // Create modern dark palette - 参考VSCode配色
     QPalette darkPalette;
-    darkPalette.setColor(QPalette::Window, QColor(53, 53, 53));
-    darkPalette.setColor(QPalette::WindowText, QColor(255, 255, 255));
-    darkPalette.setColor(QPalette::Base, QColor(25, 25, 25));
-    darkPalette.setColor(QPalette::AlternateBase, QColor(53, 53, 53));
-    darkPalette.setColor(QPalette::ToolTipBase, QColor(255, 255, 255));
-    darkPalette.setColor(QPalette::ToolTipText, QColor(255, 255, 255));
-    darkPalette.setColor(QPalette::Text, QColor(255, 255, 255));
-    darkPalette.setColor(QPalette::Button, QColor(53, 53, 53));
-    darkPalette.setColor(QPalette::ButtonText, QColor(255, 255, 255));
-    darkPalette.setColor(QPalette::BrightText, QColor(255, 0, 0));
-    darkPalette.setColor(QPalette::Link, QColor(42, 130, 218));
-    darkPalette.setColor(QPalette::Highlight, QColor(42, 130, 218));
+    darkPalette.setColor(QPalette::Window, QColor(30, 30, 30));
+    darkPalette.setColor(QPalette::WindowText, QColor(212, 212, 212));
+    darkPalette.setColor(QPalette::Base, QColor(30, 30, 30));
+    darkPalette.setColor(QPalette::AlternateBase, QColor(45, 45, 45));
+    darkPalette.setColor(QPalette::ToolTipBase, QColor(45, 45, 45));
+    darkPalette.setColor(QPalette::ToolTipText, QColor(212, 212, 212));
+    darkPalette.setColor(QPalette::Text, QColor(212, 212, 212));
+    darkPalette.setColor(QPalette::Button, QColor(45, 45, 45));
+    darkPalette.setColor(QPalette::ButtonText, QColor(212, 212, 212));
+    darkPalette.setColor(QPalette::BrightText, QColor(255, 255, 255));
+    darkPalette.setColor(QPalette::Link, QColor(0, 122, 204));
+    darkPalette.setColor(QPalette::Highlight, QColor(0, 122, 204));
     darkPalette.setColor(QPalette::HighlightedText, QColor(255, 255, 255));
     
     QApplication::setPalette(darkPalette);
     
-    // Set stylesheet for custom styling
+    // Set stylesheet for custom styling - 参考VSCode等现代编辑器设计
     QString styleSheet = R"(
         QMainWindow {
             background-color: #1E1E1E;
+            color: #D4D4D4;
+        }
+        
+        /* 侧边栏样式 - 参考VSCode设计 */
+        QWidget#leftPanel {
+            background-color: #252526;
+            border-right: 1px solid #2D2D30;
+            min-width: 200px;
+            max-width: 300px;
         }
         
         QTreeWidget {
             background-color: #252526;
-            border: 1px solid #3E3E42;
+            border: none;
             color: #CCCCCC;
-            font-family: 'Consolas', 'Monaco', monospace;
-            font-size: 12px;
+            font-family: 'Segoe UI', 'Cascadia Code', 'Consolas', monospace;
+            font-size: 13px;
+            outline: none;
+            selection-background-color: #094771;
         }
         
         QTreeWidget::item {
-            padding: 4px;
+            padding: 4px 8px;
             border: none;
+            min-height: 22px;
+            margin: 1px 0px;
         }
         
         QTreeWidget::item:selected {
             background-color: #094771;
+            color: white;
+            border-radius: 3px;
         }
         
         QTreeWidget::item:hover {
             background-color: #2A2D2E;
+            border-radius: 3px;
         }
         
         QTreeWidget::item:alternate {
-            background-color: #2D2D30;
+            background-color: transparent;
         }
         
-        QTextEdit {
+        QTreeWidget::branch {
+            background-color: transparent;
+            width: 16px;
+        }
+        
+        QTreeWidget::branch:has-children:!has-siblings:closed,
+        QTreeWidget::branch:closed:has-children:has-siblings {
+            image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTYgNEwxMCA4TDYgMTJWNloiIGZpbGw9IiM4ODg4ODgiLz4KPC9zdmc+);
+        }
+        
+        QTreeWidget::branch:open:has-children:!has-siblings,
+        QTreeWidget::branch:open:has-children:has-siblings {
+            image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTQgNkw4IDEwTDQgMTRWNloiIGZpbGw9IiM4ODg4ODgiLz4KPC9zdmc+);
+        }
+        
+        /* 编辑器样式 - 参考VSCode */
+        QTextEdit, QPlainTextEdit {
             background-color: #1E1E1E;
-            border: 1px solid #3E3E42;
-            color: #CCCCCC;
-            font-family: 'Consolas', 'Monaco', monospace;
-            font-size: 12px;
+            border: none;
+            color: #D4D4D4;
+            font-family: 'Cascadia Code', 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            selection-background-color: #264F78;
+            padding: 0px;
         }
         
         QPlainTextEdit {
-            background-color: #1E1E1E;
-            border: 1px solid #3E3E42;
-            color: #CCCCCC;
-            font-family: 'Consolas', 'Monaco', monospace;
-            font-size: 12px;
-            selection-background-color: #094771;
+            selection-background-color: #264F78;
         }
         
+        /* 按钮样式 - 现代化简约设计 */
         QPushButton {
             background-color: #0E639C;
-            border: 1px solid #007ACC;
+            border: none;
             color: white;
             padding: 8px 16px;
-            font-weight: bold;
+            font-weight: 500;
             border-radius: 6px;
-            min-height: 20px;
+            min-height: 28px;
             min-width: 80px;
+            font-size: 13px;
+            font-family: 'Segoe UI', sans-serif;
         }
         
         QPushButton:hover {
             background-color: #1177BB;
-            border-color: #1E90FF;
+            transform: translateY(-1px);
         }
         
         QPushButton:pressed {
             background-color: #005A9E;
-            border-color: #0066CC;
+            transform: translateY(0px);
         }
         
         QPushButton:disabled {
             background-color: #3E3E42;
-            border: 1px solid #5A5A5A;
             color: #6A6A6A;
         }
         
-        QPushButton::menu-indicator {
-            image: none;
+        /* 工具栏样式 - 更简约 */
+        QToolBar {
+            background-color: #2D2D30;
             border: none;
-            width: 12px;
-            height: 12px;
-            background-color: white;
-            border-radius: 2px;
-            margin-right: 4px;
+            border-bottom: 1px solid #3E3E42;
+            spacing: 6px;
+            padding: 6px 12px;
         }
         
-        QLabel {
+        QToolButton {
+            background-color: transparent;
+            border: none;
             color: #CCCCCC;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            min-width: 32px;
+            min-height: 32px;
         }
         
+        QToolButton:hover {
+            background-color: #2A2D2E;
+        }
+        
+        QToolButton:pressed {
+            background-color: #094771;
+        }
+        
+        QToolButton:disabled {
+            color: #6A6A6A;
+        }
+        
+        /* 菜单栏样式 - 更现代 */
         QMenuBar {
-            background-color: #3C3C3C;
+            background-color: #2D2D30;
             color: #CCCCCC;
+            border: none;
+            border-bottom: 1px solid #3E3E42;
+            font-size: 13px;
+            font-family: 'Segoe UI', sans-serif;
         }
         
         QMenuBar::item {
             background-color: transparent;
-            padding: 4px 8px;
+            padding: 8px 16px;
+            border-radius: 4px;
+            margin: 2px;
         }
         
         QMenuBar::item:selected {
@@ -573,36 +639,156 @@ void MainWindow::setupStyle() {
         }
         
         QMenu {
-            background-color: #3C3C3C;
-            border: 1px solid #5A5A5A;
+            background-color: #2D2D30;
+            border: 1px solid #3E3E42;
             color: #CCCCCC;
+            font-size: 13px;
+            border-radius: 6px;
+            padding: 4px;
         }
         
         QMenu::item {
-            padding: 6px 20px;
+            padding: 8px 20px;
+            border-radius: 4px;
+            margin: 1px;
         }
         
         QMenu::item:selected {
             background-color: #094771;
         }
         
-        QToolBar {
-            background-color: #3C3C3C;
-            border: none;
-            spacing: 4px;
+        QMenu::separator {
+            height: 1px;
+            background-color: #3E3E42;
+            margin: 6px 12px;
         }
         
+        /* 状态栏样式 - 更简约 */
         QStatusBar {
             background-color: #007ACC;
             color: white;
+            border: none;
+            font-size: 12px;
+            font-family: 'Segoe UI', sans-serif;
+            padding: 4px 12px;
         }
         
-        QSplitter::handle {
+        /* 标签页样式 - 参考VSCode */
+        QTabWidget::pane {
+            border: none;
+            background-color: #1E1E1E;
+        }
+        
+        QTabBar::tab {
+            background-color: #2D2D30;
+            color: #CCCCCC;
+            padding: 10px 20px;
+            margin-right: 1px;
+            border-top-left-radius: 6px;
+            border-top-right-radius: 6px;
+            font-size: 13px;
+            min-width: 120px;
+        }
+        
+        QTabBar::tab:selected {
+            background-color: #1E1E1E;
+            color: white;
+            border-bottom: 2px solid #007ACC;
+        }
+        
+        QTabBar::tab:hover {
             background-color: #3E3E42;
         }
         
+        QTabBar::close-button {
+            image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHZpZXdCb3g9IjAgMCAxMiAxMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTkgM0wzIDlNMyAzTDkgOSIgc3Ryb2tlPSIjQ0NDQ0NDIiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+Cjwvc3ZnPg==);
+            width: 16px;
+            height: 16px;
+        }
+        
+        QTabBar::close-button:hover {
+            background-color: #E81123;
+            border-radius: 8px;
+        }
+        
+        /* 标签样式 */
+        QLabel {
+            color: #CCCCCC;
+            font-size: 13px;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        
+        /* 进度条样式 - 更现代 */
+        QProgressBar {
+            border: none;
+            border-radius: 6px;
+            background-color: #2D2D30;
+            text-align: center;
+            color: white;
+            height: 8px;
+        }
+        
+        QProgressBar::chunk {
+            background-color: #007ACC;
+            border-radius: 6px;
+        }
+        
+        /* 滚动条样式 - 参考VSCode */
+        QScrollBar:vertical {
+            background-color: #1E1E1E;
+            width: 12px;
+            border: none;
+        }
+        
+        QScrollBar::handle:vertical {
+            background-color: #424242;
+            border-radius: 6px;
+            min-height: 20px;
+            margin: 2px;
+        }
+        
+        QScrollBar::handle:vertical:hover {
+            background-color: #4F4F4F;
+        }
+        
+        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+            height: 0px;
+        }
+        
+        QScrollBar:horizontal {
+            background-color: #1E1E1E;
+            height: 12px;
+            border: none;
+        }
+        
+        QScrollBar::handle:horizontal {
+            background-color: #424242;
+            border-radius: 6px;
+            min-width: 20px;
+            margin: 2px;
+        }
+        
+        QScrollBar::handle:horizontal:hover {
+            background-color: #4F4F4F;
+        }
+        
+        QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+            width: 0px;
+        }
+        
+        /* 分割器样式 - 更现代 */
+        QSplitter::handle {
+            background-color: #2D2D30;
+            border: none;
+            margin: 1px;
+        }
+        
         QSplitter::handle:hover {
-            background-color: #4EC9B0;
+            background-color: #007ACC;
+        }
+        
+        QSplitter::handle:pressed {
+            background-color: #005A9E;
         }
     )";
     
@@ -628,8 +814,8 @@ void MainWindow::openFile() {
             xmlEditor_->setPlainText(content);
             originalXmlContent_ = content;
             isEditing_ = false;
-            editButton_->setEnabled(true);
-            saveButton_->setEnabled(false);
+            editAction_->setEnabled(true);
+            saveAction_->setEnabled(false);
             xmlEditor_->setReadOnly(true);
         } else {
             QMessageBox::critical(this, "Error", "Failed to open file: " + fileName);
@@ -1389,16 +1575,16 @@ void MainWindow::toggleEditMode() {
         // Enter edit mode
         isEditing_ = true;
         xmlEditor_->setReadOnly(false);
-        editButton_->setText("Cancel Edit");
-        saveButton_->setEnabled(true);
+        editAction_->setText("Cancel Edit");
+        saveAction_->setEnabled(true);
         statusBar()->showMessage(isMarkdownMode_ ? "Edit mode enabled - you can now modify the Markdown" : "Edit mode enabled - you can now modify the XML");
     } else {
         // Cancel edit mode
         isEditing_ = false;
         xmlEditor_->setPlainText(originalXmlContent_);
         xmlEditor_->setReadOnly(true);
-        editButton_->setText("Edit");
-        saveButton_->setEnabled(false);
+        editAction_->setText("Edit");
+        saveAction_->setEnabled(false);
         statusBar()->showMessage("Edit cancelled - changes discarded");
     }
 }
@@ -1421,8 +1607,8 @@ void MainWindow::saveXmlContent() {
             originalXmlContent_ = newContent;
             isEditing_ = false;
             xmlEditor_->setReadOnly(true);
-            editButton_->setText("Edit");
-            saveButton_->setEnabled(false);
+            editAction_->setText("Edit");
+            saveAction_->setEnabled(false);
             statusBar()->showMessage("Markdown content saved successfully");
         } else {
             QMessageBox::critical(this, "Error", "Failed to save Markdown content");
@@ -1461,8 +1647,8 @@ void MainWindow::saveXmlContent() {
         originalXmlContent_ = newContent;
         isEditing_ = false;
         xmlEditor_->setReadOnly(true);
-        editButton_->setText("Edit");
-        saveButton_->setEnabled(false);
+        editAction_->setText("Edit");
+        saveAction_->setEnabled(false);
         
         statusBar()->showMessage("XML content saved successfully");
     } else {

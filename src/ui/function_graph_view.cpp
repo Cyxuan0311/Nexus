@@ -77,38 +77,62 @@ void FunctionGraphView::setupUI() {
     connect(layoutCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &FunctionGraphView::onLayoutTypeChanged);
     
-    // Set styles
+    // Set styles - 参考现代编辑器设计
     setStyleSheet(R"(
         QPushButton {
             background-color: #0E639C;
-            border: 1px solid #007ACC;
+            border: none;
             color: white;
-            padding: 6px 12px;
-            font-weight: bold;
-            border-radius: 3px;
+            padding: 8px 16px;
+            font-weight: 500;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: 'Segoe UI', sans-serif;
+            min-height: 28px;
         }
         QPushButton:hover {
             background-color: #1177BB;
+            transform: translateY(-1px);
         }
         QPushButton:pressed {
             background-color: #005A9E;
+            transform: translateY(0px);
         }
         QComboBox {
-            background-color: #3C3C3C;
-            border: 1px solid #5A5A5A;
+            background-color: #2D2D30;
+            border: 1px solid #3E3E42;
             color: #CCCCCC;
-            padding: 4px 8px;
-            border-radius: 3px;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: 'Segoe UI', sans-serif;
+            min-height: 28px;
         }
         QComboBox::drop-down {
             border: none;
+            width: 20px;
         }
         QComboBox::down-arrow {
             color: #CCCCCC;
+            width: 12px;
+            height: 12px;
+        }
+        QComboBox QAbstractItemView {
+            background-color: #2D2D30;
+            border: 1px solid #3E3E42;
+            color: #CCCCCC;
+            selection-background-color: #094771;
+            border-radius: 6px;
         }
         QGraphicsView {
             background-color: #1E1E1E;
-            border: 1px solid #3E3E42;
+            border: none;
+            border-radius: 6px;
+        }
+        QLabel {
+            color: #CCCCCC;
+            font-size: 13px;
+            font-family: 'Segoe UI', sans-serif;
         }
     )");
 }

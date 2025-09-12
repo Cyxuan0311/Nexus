@@ -5,9 +5,10 @@
 SearchDialog::SearchDialog(QWidget *parent)
     : QDialog(parent) {
     setupUi();
+    setupStyle();
     setWindowTitle("Search and Replace");
     setModal(true);
-    resize(400, 300);
+    resize(450, 350);
 }
 
 void SearchDialog::setupUi() {
@@ -157,4 +158,132 @@ void SearchDialog::onSearchTextChanged() {
     findButton_->setEnabled(hasText);
     replaceButton_->setEnabled(hasText && isReplaceMode());
     replaceAllButton_->setEnabled(hasText && isReplaceMode());
+}
+
+void SearchDialog::setupStyle() {
+    setStyleSheet(R"(
+        QDialog {
+            background-color: #1E1E1E;
+            color: #D4D4D4;
+        }
+        
+        QGroupBox {
+            font-weight: 600;
+            font-size: 13px;
+            color: #CCCCCC;
+            border: 1px solid #3E3E42;
+            border-radius: 6px;
+            margin-top: 8px;
+            padding-top: 8px;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            left: 12px;
+            padding: 0 8px 0 8px;
+            background-color: #1E1E1E;
+        }
+        
+        QLineEdit {
+            background-color: #2D2D30;
+            border: 1px solid #3E3E42;
+            color: #D4D4D4;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: 'Cascadia Code', 'Consolas', monospace;
+        }
+        
+        QLineEdit:focus {
+            border-color: #007ACC;
+            background-color: #2D2D30;
+        }
+        
+        QLineEdit::placeholder {
+            color: #6A6A6A;
+        }
+        
+        QRadioButton {
+            color: #CCCCCC;
+            font-size: 13px;
+            font-family: 'Segoe UI', sans-serif;
+            spacing: 8px;
+        }
+        
+        QRadioButton::indicator {
+            width: 16px;
+            height: 16px;
+        }
+        
+        QRadioButton::indicator::unchecked {
+            border: 2px solid #3E3E42;
+            border-radius: 8px;
+            background-color: transparent;
+        }
+        
+        QRadioButton::indicator::checked {
+            border: 2px solid #007ACC;
+            border-radius: 8px;
+            background-color: #007ACC;
+        }
+        
+        QCheckBox {
+            color: #CCCCCC;
+            font-size: 13px;
+            font-family: 'Segoe UI', sans-serif;
+            spacing: 8px;
+        }
+        
+        QCheckBox::indicator {
+            width: 16px;
+            height: 16px;
+        }
+        
+        QCheckBox::indicator::unchecked {
+            border: 1px solid #3E3E42;
+            border-radius: 3px;
+            background-color: transparent;
+        }
+        
+        QCheckBox::indicator::checked {
+            border: 1px solid #007ACC;
+            border-radius: 3px;
+            background-color: #007ACC;
+        }
+        
+        QPushButton {
+            background-color: #0E639C;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            font-weight: 500;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: 'Segoe UI', sans-serif;
+            min-height: 28px;
+            min-width: 80px;
+        }
+        
+        QPushButton:hover {
+            background-color: #1177BB;
+        }
+        
+        QPushButton:pressed {
+            background-color: #005A9E;
+        }
+        
+        QPushButton:disabled {
+            background-color: #3E3E42;
+            color: #6A6A6A;
+        }
+        
+        QPushButton[text="Close"] {
+            background-color: #3E3E42;
+        }
+        
+        QPushButton[text="Close"]:hover {
+            background-color: #4F4F4F;
+        }
+    )");
 } 
