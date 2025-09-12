@@ -110,11 +110,11 @@ private:
 	QTreeWidget* treeWidget_;
 	QTextEdit* detailsTextEdit_;
 	FoldingTextEdit* xmlEditor_;
-	QPushButton* parseButton_;
-	QPushButton* openButton_;
-	QPushButton* openProjectButton_;
-	QPushButton* editButton_;
-	QPushButton* saveButton_;
+	// 工具栏按钮引用
+	QToolButton* parseButton_;
+	QAction* editAction_;
+	QAction* openProjectAction_;
+	
 	QLabel* fileLabel_;
 	QTabWidget* rightTabs_;
 	QTextBrowser* markdownPreview_;

@@ -33,6 +33,7 @@ private slots:
 
 private:
     void setupUi();
+    void setupStyle();
     
     QLineEdit* searchEdit_;
     QLineEdit* replaceEdit_;
